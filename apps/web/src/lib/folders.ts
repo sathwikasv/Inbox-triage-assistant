@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import { CATEGORY_LABEL, type Category, type MailboxState, type MailboxView, type MailMessage, type MailThread } from "@c16/core";
 import { PRIORITY_ORDER } from "../components/mail/common";
 
-export type Folder = "inbox" | "drafts" | "sent" | "archive" | "starred" | Category;
-export const FOLDER_LABEL: Record<Folder, string> = { inbox: "Inbox", drafts: "Drafts", sent: "Sent", archive: "Archive", starred: "Starred", ...CATEGORY_LABEL };
+export type Folder = "inbox" | "review" | "drafts" | "sent" | "archive" | "starred" | Category;
+export const FOLDER_LABEL: Record<Folder, string> = { inbox: "Inbox", review: "Needs review", drafts: "Drafts", sent: "Sent", archive: "Archive", starred: "Starred", ...CATEGORY_LABEL };
 
 /** Categories that ask something of the person, in the order they are worked through. */
 export const ACTIONABLE: Category[] = ["urgent", "requires_action", "to_delegate", "meetings", "follow_up"];
@@ -35,10 +35,12 @@ export function useThreadContext(view: MailboxView, state: MailboxState) {
   return useMemo(() => threadContext(view, state), [view, state]);
 }
 
-export function inFolder(t: MailThread, folder: Folder, ctx: Pick<ThreadContext, "drafts" | "outbound" | "starred">) {
+export function inFolder(t: MailThread, folder: Folder, ctx: Pick<ThreadContext, "drafts" | "outbound" | "starred"> & { review?: Set<string> }) {
   switch (folder) {
     case "inbox":
       return !t.archived && t.category !== "spam";
+    case "review":
+      return !!ctx.review?.has(t.key);
     case "drafts":
       return !!ctx.drafts[t.key] && !ctx.drafts[t.key].sent_at;
     case "sent":

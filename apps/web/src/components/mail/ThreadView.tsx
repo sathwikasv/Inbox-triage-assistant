@@ -57,6 +57,8 @@ import { useApp } from "../../store/app";
 import { useMailbox } from "../../store/mailbox";
 import { aiReply, aiStatus } from "../../lib/ai";
 import { useThreadActions } from "../../lib/threadActions";
+import { lastMessageId, useAssistant } from "../../store/assistant";
+import { AssistantCard } from "./AssistantCard";
 import { Badge, Button, Dialog, Segmented, Tip, cn } from "../../ui";
 import { CAT, CATS, CategoryBadge, PriorityBadge, ProviderMark, SenderAvatar, accountNote, addrList, addrText, ago, localTime, nameOf } from "./common";
 
@@ -179,6 +181,8 @@ export function ThreadView({ view, thread, onBack, position, onRemoved }: { view
               </span>
             </div>
           </div>
+
+          {thread.category !== "spam" && !lead?.suspicious && <AssistantCard view={view} thread={thread} />}
 
           {lead?.suspicious && (
             <div className="flex items-start gap-3 rounded-2xl bg-rose-600 px-4 py-3 text-sm text-white shadow-card">
@@ -563,17 +567,26 @@ function ReplyEditor({ view, thread, account }: { view: MailboxView; thread: Mai
   const [to, setTo] = useState(addrText(saved?.to ?? headers?.to ?? []));
   const [cc, setCc] = useState(addrText(saved?.cc ?? headers?.cc ?? []));
   const [subject, setSubject] = useState(saved?.subject ?? headers?.subject ?? `Re: ${thread.subject}`);
-  const [body, setBody] = useState(saved?.body ?? suggested);
+  const assist = useAssistant((s) => s.results[thread.key]);
+  const aiDraft = assist && assist.for_message === lastMessageId(thread) && assist.reply ? assist.reply : null;
+  const [body, setBody] = useState(saved?.body ?? aiDraft ?? suggested);
   const [confirming, setConfirming] = useState(false);
   const [ticked, setTicked] = useState<string[]>([]);
   const [details, setDetails] = useState(false);
   const [ai, setAi] = useState<{ enabled: boolean; model: string | null }>({ enabled: false, model: null });
-  const [aiText, setAiText] = useState<string | null>(null);
+  const [aiText, setAiText] = useState<string | null>(saved ? null : aiDraft);
   const [thinking, setThinking] = useState(false);
   const toast = useApp((s) => s.toast);
   useEffect(() => {
     aiStatus().then(setAi);
   }, []);
+  useEffect(() => {
+    // The assistant's checked draft arrives in the background: use it only while the person has not started their own.
+    if (aiDraft && !saved && body === suggested) {
+      setBody(aiDraft);
+      setAiText(aiDraft);
+    }
+  }, [aiDraft]);
   if (!headers) return null;
 
   const lint = lintReply(view, thread.key, body);
@@ -610,7 +623,7 @@ function ReplyEditor({ view, thread, account }: { view: MailboxView; thread: Mai
         <Reply className="h-4 w-4 text-muted" />
         <span className="text-sm font-semibold">Reply to {recipient}</span>
         <Badge tone={source === "ai" ? "violet" : "neutral"} className="rounded-full">
-          {source === "ai" ? `AI draft · ${ai.model}` : source === "template" ? "suggested draft" : "edited"}
+          {source === "ai" ? `AI draft · ${assist?.model ?? ai.model}` : source === "template" ? "suggested draft" : "edited"}
         </Badge>
         {saved?.approved_at && !dirty && (
           <Badge tone="green" className="rounded-full">
