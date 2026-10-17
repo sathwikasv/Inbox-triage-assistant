@@ -9,7 +9,8 @@ function purposeOf(id: string, body: string) {
 }
 
 describe("rules on new phrasings (robustness set, 70 emails)", () => {
-  // Baseline before broadening the rules: 32/70 (45.7%). The rules were then tuned on this set,
+  // Baseline before broadening the rules: 32/70 (45.7%). The rules were then tuned on this set and on
+  // heldout.json (v1, now a development set),
   // so it guards against regressions; the honest generalisation number comes from heldout.json.
   it.each(robustness.emails.map((e) => [e.id, e.purpose, e.body]))("%s is %s", (id, purpose, body) => {
     expect(purposeOf(id, body)).toBe(purpose);

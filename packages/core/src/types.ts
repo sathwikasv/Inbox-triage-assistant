@@ -156,12 +156,16 @@ export interface LintViolation {
   reason: string;
 }
 
+export type DraftTone = "standard" | "formal" | "friendly" | "brief";
+
 export interface Draft {
   thread_key: string;
-  body: string;
+  body: string; // standard tone
   source: "template" | "model-assist";
   lint_ok: boolean;
   violations: LintViolation[];
+  tones: Partial<Record<DraftTone, string>>; // every tone that passed the lint
+  reply_to: { email_id: string; subject: string } | null; // the email this reply answers
 }
 
 export interface SeededItem {
