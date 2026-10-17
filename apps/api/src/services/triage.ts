@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { Types } from "mongoose";
-import { runTriage, fixtureHash, type Labels, type TriageResult } from "@c16/core";
+import { runTriage, fixtureHash, parseFixture, type Labels, type TriageResult } from "@c16/core";
+import { classifyEmails } from "./ai.js";
 import { TriageRun } from "../models/TriageRun.js";
 import { Decision } from "../models/Decision.js";
 import { Draft } from "../models/Draft.js";
@@ -42,6 +43,7 @@ export async function loadRun(id: string, reused = false) {
     decisionEdits: Object.fromEntries(decisions.filter((d) => d.reviewerEdited).map((d) => [d.emailId, d.edits])),
     audit: events.map((e) => ({ at: new Date(e.at).toISOString(), actor: e.actor, type: e.type, email_id: e.emailId ?? undefined, thread_key: e.threadKey ?? undefined, detail: e.detail })),
     storage: "api" as const,
+    ai: (run.ai ?? { status: "disabled" }) as { status: string; model?: string; error?: string; ms?: number },
   };
 }
 
@@ -58,10 +60,12 @@ export async function importRun(input: unknown, source: string) {
   }
 
   const labels = labelsFor(hash);
-  const result = runTriage(input, { labels });
+  const fx = parseFixture(input); // validate before spending any AI quota
+  const ai = await classifyEmails(fx.records.emails.map((e) => ({ email_id: e.email_id, subject: e.subject, body: e.body })));
+  const result = runTriage(input, { labels, ai: ai.predictions });
   let run;
   try {
-    run = await TriageRun.create({ fixtureHash: hash, caseId: result.case_id, source, labelsApplied: !!labels, result });
+    run = await TriageRun.create({ fixtureHash: hash, caseId: result.case_id, source, labelsApplied: !!labels, result, ai: { status: ai.status, model: ai.model, error: ai.error, ms: ai.ms } });
   } catch (e) {
     // Two imports of the same file at once: the unique index keeps one run.
     if ((e as { code?: number }).code === 11000) return importRun(input, source);
@@ -82,7 +86,8 @@ export async function importRun(input: unknown, source: string) {
     })),
   );
   await Draft.insertMany(result.drafts.map((d) => ({ runId: run._id, threadKey: d.thread_key, body: d.body, source: d.source, lintOk: d.lint_ok, violations: d.violations })));
-  await audit(run._id, { type: "import", detail: `${source}: ${result.decisions.length} emails, ${result.threads.length} threads, hash ${hash}` });
+  const aiNote = ai.status === "ok" ? `; AI ${ai.model} checked every email` : ai.status === "error" ? `; AI unavailable (${ai.error}), rules only` : "; rules only";
+  await audit(run._id, { type: "import", detail: `${source}: ${result.decisions.length} emails, ${result.threads.length} threads, hash ${hash}${aiNote}` });
   for (const d of result.decisions.filter((x) => x.status === "quarantined"))
     await audit(run._id, { type: "quarantine", emailId: d.email_id, threadKey: d.thread_key, detail: d.explain.purpose, actor: "system" });
   return { created: true, run: (await loadRun(String(run._id)))! };

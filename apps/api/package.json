@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "test": "vitest run --passWithNoTests",
-    "lint": "eslint src tests"
+    "lint": "eslint src tests",
+    "eval:ai": "node scripts/eval-ai.mjs"
   },
   "dependencies": {
     "@c16/core": "workspace:*",
