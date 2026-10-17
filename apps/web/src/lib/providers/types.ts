@@ -15,6 +15,8 @@ export interface MailProviderClient {
   enableSend(account: MailAccount): Promise<void>;
   send(account: MailAccount, reply: OutgoingReply): Promise<{ message_id: string }>;
   disconnect(account: MailAccount): Promise<void>;
+  /** Resumes a session the provider still holds (no popup), or null. Only where a server keeps the session. */
+  restore?(): Promise<{ account: MailAccount; messages: MailMessage[] } | null>;
 }
 
 export interface OutgoingReply {
@@ -75,6 +77,9 @@ export function setting(key: keyof typeof CONFIG_KEYS): string {
     return env || "";
   }
 }
+
+/** True once any real provider or the server is configured: the app then works on real mail, not demo data. */
+export const providersConfigured = () => !!(setting("google") || setting("microsoft") || setting("api"));
 
 export function saveSetting(key: keyof typeof CONFIG_KEYS, value: string) {
   try {

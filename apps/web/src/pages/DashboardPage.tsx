@@ -1,10 +1,12 @@
 import { useNavigate } from "react-router-dom";
-import { AlarmClock, AlertTriangle, ArrowRight, CalendarDays, Clock, Hourglass, Inbox, ListTodo, Mail, MailQuestion, Sparkles, Video, type LucideIcon } from "lucide-react";
+import { AlarmClock, AlertTriangle, ArrowRight, CalendarDays, Clock, Hourglass, Inbox, ListTodo, Mail, MailQuestion, MessageSquareWarning, ShieldCheck, Sparkles, Video, type LucideIcon } from "lucide-react";
 import { formatDate, type Category, type FollowUpKind, type MailboxView } from "@c16/core";
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
 import { CAT, CATS, CategoryBadge, PriorityBadge, ProviderMark, accountNote, ago, localTime, nameOf, whenIso, ymdIn } from "../components/mail/common";
 import { queue, useThreadContext } from "../lib/folders";
+import { useReviewItems } from "../lib/review";
+import { AssistantOffer, ConnectMailboxes, ReconnectBar } from "../components/Onboarding";
 import { Button, cn } from "../ui";
 
 const FU_ICON: Record<FollowUpKind, { icon: LucideIcon; cls: string; label: string }> = {
@@ -127,6 +129,30 @@ export default function DashboardPage() {
   const nowMs = Date.parse(view.now);
   const today = ymdIn(view.now, tz);
   const hour = Number(localTime(view.now, tz, { hour: "2-digit", hour12: false }));
+  const review = useReviewItems();
+
+  if (!view.accounts.length) {
+    return (
+      <div className="space-y-6">
+        <div className="-mx-4 -mt-6 lg:-mx-8">
+          <ReconnectBar />
+        </div>
+        <section className="relative overflow-hidden rounded-3xl border border-line bg-gradient-to-br from-brand-soft via-surface to-surface p-8 shadow-card">
+          <h1 className="text-3xl font-semibold tracking-tight">Welcome, {prefs.name.split(" ")[0]}</h1>
+          <p className="mt-2 max-w-2xl text-[15px] text-fg/80">Connect your mailboxes and Triagedesk sorts every email into a category, finds deadlines and meeting requests, and prepares replies for you to review. Nothing is sent without you.</p>
+          <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
+            {["Read-only until you allow sending", "Sign-in happens on Google, Microsoft or Yahoo", "Drafts are checked for invented claims"].map((t) => (
+              <li key={t} className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" /> {t}
+              </li>
+            ))}
+          </ul>
+        </section>
+        <ConnectMailboxes />
+        <AssistantOffer />
+      </div>
+    );
+  }
 
   const live = view.threads.filter((t) => !t.archived);
   const todo = queue(view, ctx);
@@ -145,6 +171,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <div className="-mx-4 -mt-6 lg:-mx-8">
+        <ReconnectBar />
+      </div>
+      <AssistantOffer />
       <section className="relative overflow-hidden rounded-3xl border border-line bg-gradient-to-br from-brand-soft via-surface to-surface p-6 shadow-card sm:p-8">
         <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-gradient-to-br from-violet-400/25 to-rose-400/20 blur-3xl" />
         <div className="relative flex flex-wrap items-end gap-6">
@@ -163,7 +193,12 @@ export default function DashboardPage() {
               )}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {review.length > 0 && (
+              <Button size="md" className="rounded-full border-amber-300 bg-amber-50 px-5 text-amber-900 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100" onClick={() => navigate("/inbox?view=review")}>
+                <MessageSquareWarning className="h-4 w-4" /> {review.length} need your review
+              </Button>
+            )}
             {todo[0] && (
               <Button variant="primary" size="md" className="rounded-full px-5" onClick={() => navigate(`/inbox?t=${encodeURIComponent(todo[0].key)}`)}>
                 <Sparkles className="h-4 w-4" /> Triage next

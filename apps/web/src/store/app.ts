@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toast as sonner } from "sonner";
 import type { Role } from "@c16/core";
+import { providersConfigured } from "../lib/providers/types";
 
 export type Theme = "light" | "dark";
 
@@ -52,12 +53,15 @@ interface AppState {
 export const useApp = create<AppState>((set, get) => ({
   role: read<Role>("c16.role", "reviewer"),
   theme: (() => {
-    const system: Theme = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    const t = read<Theme>("c16.theme", system);
+    const t = read<Theme>("c16.theme", "light");
     applyTheme(t);
     return t;
   })(),
-  prefs: { name: "Riya Sharma", timezone: browserZone, showDemo: true, density: "comfortable", pane: "right", rail: false, highlight: true, ...read<Partial<Prefs>>("c16.prefs", {}) },
+  prefs: (() => {
+    // Demo mailboxes show only until real providers are configured, unless the person chose otherwise.
+    const { showDemo: _legacy, ...stored } = read<Partial<Prefs>>("c16.prefs", {});
+    return { name: "Riya Sharma", timezone: browserZone, density: "comfortable", pane: "right", rail: false, highlight: true, ...stored, showDemo: read<boolean | null>("c16.demo", null) ?? !providersConfigured() } as Prefs;
+  })(),
   setRole(role) {
     write("c16.role", role);
     set({ role });
@@ -70,7 +74,9 @@ export const useApp = create<AppState>((set, get) => ({
   },
   setPrefs(p) {
     const prefs = { ...get().prefs, ...p };
-    write("c16.prefs", prefs);
+    if (p.showDemo !== undefined) write("c16.demo", p.showDemo);
+    const { showDemo: _demo, ...rest } = prefs;
+    write("c16.prefs", rest);
     set({ prefs });
   },
   toast(text, tone = "ok") {
