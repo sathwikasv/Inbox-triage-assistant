@@ -18,6 +18,8 @@ interface TriageState {
   busy: boolean;
   importError: ImportError | null;
   actionError: string | null;
+  useModelDrafts: boolean; // show pre-generated model variants instead of the template (both are linted)
+  setUseModelDrafts(v: boolean): void;
   boot(): Promise<void>;
   switchRepo(kind: RepoKind): Promise<void>;
   importFixture(input: unknown, source: string): Promise<boolean>;
@@ -60,6 +62,8 @@ export const useTriage = create<TriageState>((set, get) => {
     busy: false,
     importError: null,
     actionError: null,
+    useModelDrafts: false,
+    setUseModelDrafts: (v) => set({ useModelDrafts: v }),
 
     async boot() {
       if (get().booted || booting) return;
