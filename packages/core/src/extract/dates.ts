@@ -52,6 +52,8 @@ export function extractDates(text: string, receivedAt: string | null): DateMenti
   for (const r of chrono.parse(norm.text, ref, { forwardDate: true })) {
     const sentence = sentenceAt(text, norm.toOriginal(r.index));
     const relative = RELATIVE.test(r.text);
+    // "Starting September 2026" names a month, not a day: never turn it into a date or deadline.
+    if (!r.start.isCertain("day") && !r.start.isCertain("weekday") && !r.start.isCertain("hour") && !relative) continue;
     const anchored = receivedAt !== null || (r.start.isCertain("year") && !relative);
     const date = anchored
       ? `${r.start.get("year")}-${pad(r.start.get("month")!)}-${pad(r.start.get("day")!)}`

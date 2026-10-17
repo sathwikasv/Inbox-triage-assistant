@@ -23,7 +23,7 @@ import type {
   TaskItem,
   WhenSpec,
 } from "./types.js";
-import { detectDuration, detectLocation, detectMeetingLink, detectPhishing, detectPromotion, detectScheduling, detectVagueDeadline } from "./detect.js";
+import { detectAutomated, detectDuration, detectLocation, detectMeetingLink, detectPhishing, detectPromotion, detectScheduling, detectVagueDeadline, isNoReply } from "./detect.js";
 import { addMinutes, dayIn, toIso, whenFrom, zoneOffset } from "./time.js";
 
 export const EMPTY_STATE: MailboxState = {
@@ -81,17 +81,29 @@ function triageAccount(inbound: MailMessage[], ai?: Record<string, AiPrediction>
   return runTriage({ case_id: "C16", records: { emails, policy: { ...POLICY } } }, { ai });
 }
 
+/** The AI assistant's opinion on a message's category, when it has read the conversation. */
+export interface AiCategory {
+  category: Category;
+  reason: string;
+}
+
 interface Ctx {
   user: MailboxUser;
   state: MailboxState;
   now: string;
+  aiCategories: Record<string, AiCategory>;
 }
+
+const PRIORITY_OF: Record<Category, Priority> = { urgent: "high", meetings: "high", requires_action: "normal", to_delegate: "normal", follow_up: "normal", waiting: "normal", important: "normal", fyi: "low", promotions: "low", spam: "low" };
 
 function insightFor(m: MailMessage, d: Decision, t: ThreadFacts, ctx: Ctx, key: string): MessageInsight {
   const { fresh, quoted } = splitQuoted(m.body);
   const phishing = detectPhishing(m);
   const promo = detectPromotion(m);
-  const sched = detectScheduling(m.subject, fresh, m.attachments.some((a) => /\.ics$/i.test(a.name)));
+  const auto = phishing.length ? null : detectAutomated(m);
+  const found = detectScheduling(m.subject, fresh, m.attachments.some((a) => /\.ics$/i.test(a.name)));
+  // A system can send an invitation or a booking confirmation, but "can we meet?" from a no-reply address is marketing.
+  const sched = found && !(auto && found.kind === "meeting_request") ? found : null;
   const starred = ctx.state.starred[m.id] ?? m.starred;
   const flags: MessageInsight["flags"] = [];
   if (quoted) flags.push("quoted_history_ignored");
@@ -115,6 +127,10 @@ function insightFor(m: MailMessage, d: Decision, t: ThreadFacts, ctx: Ctx, key: 
     category = "promotions";
     reason = `Newsletter or promotion: ${promo}. Not spam.`;
     next = "Read later; nothing is asked of you";
+  } else if (auto && !sched) {
+    category = auto.kind === "security" ? "important" : "fyi";
+    reason = auto.kind === "security" ? `Account or security notice: ${auto.why}. Nothing to reply to; check that it was you.` : `Automated notification: ${auto.why}. No reply expected.`;
+    next = auto.kind === "security" ? "Check that it was you" : "Read when convenient";
   } else if (t.status === "closed" && d.purpose !== "request") {
     category = "fyi";
     reason = d.purpose === "resolution" ? `Resolution: ${d.explain.purpose}.` : "Resolved later in this conversation.";
@@ -154,21 +170,32 @@ function insightFor(m: MailMessage, d: Decision, t: ThreadFacts, ctx: Ctx, key: 
   }
 
   // A detector (phishing, promotion, scheduling) decided the category, so "no type rule matched" is not a doubt.
-  if (phishing.length || category === "promotions" || category === "meetings") flags.splice(0, flags.length, ...flags.filter((x) => x !== "needs_review"));
+  if (phishing.length || auto || category === "promotions" || category === "meetings") flags.splice(0, flags.length, ...flags.filter((x) => x !== "needs_review"));
 
   const secondary = new Set<Category>();
-  if (category !== "to_delegate" && d.action_needed && t.owner === null) secondary.add("to_delegate");
+  if (!auto && category !== "to_delegate" && d.action_needed && t.owner === null) secondary.add("to_delegate");
   if (starred && category !== "important") secondary.add("important");
   if (sched && category !== "meetings" && category !== "spam") secondary.add("meetings");
-  if (t.duplicate_count > 0 && category !== "follow_up" && !["fyi", "spam"].includes(category)) secondary.add("follow_up");
+  if (!auto && t.duplicate_count > 0 && category !== "follow_up" && !["fyi", "spam"].includes(category)) secondary.add("follow_up");
 
   let priority: Priority = "low";
   if (category === "urgent") priority = t.escalations.some((e) => e.severity === "high") || t.status === "blocked" ? "critical" : "high";
   else if (category === "meetings") priority = "high";
   else if (["requires_action", "to_delegate", "follow_up", "waiting", "important"].includes(category)) priority = "normal";
 
+  // The AI assistant may correct the rules' category (never out of quarantine, never into it); a person's choice wins over both.
+  const suspicious = injection || phishing.length > 0;
+  const ai = ctx.aiCategories[m.id];
+  let byAi = false;
+  if (ai && !suspicious && ai.category !== "spam" && ai.category !== category) {
+    reason = `The AI assistant read the conversation: ${ai.reason} (the rules said ${CATEGORY_LABEL[category]})`;
+    category = ai.category;
+    priority = PRIORITY_OF[ai.category];
+    byAi = true;
+    flags.splice(0, flags.length, ...flags.filter((x) => x !== "needs_review"));
+  }
   const override = ctx.state.categories[m.id];
-  const decided_by = override ? "user" : d.ai?.decided_by === "ai" ? "ai" : "rules";
+  const decided_by = override ? "user" : byAi || d.ai?.decided_by === "ai" ? "ai" : "rules";
   if (override && override !== category) {
     reason = `You set this to ${CATEGORY_LABEL[override]} (the assistant suggested ${CATEGORY_LABEL[category]}: ${reason})`;
     category = override;
@@ -177,7 +204,7 @@ function insightFor(m: MailMessage, d: Decision, t: ThreadFacts, ctx: Ctx, key: 
     else if (priority === "low") priority = "normal";
   }
 
-  return { message_id: m.id, thread_key: key, category, secondary: [...secondary], priority, reason, next_action: next, purpose: d.purpose, urgency: d.urgency, decided_by, suspicious: injection || phishing.length > 0, flags };
+  return { message_id: m.id, thread_key: key, category, secondary: [...secondary], priority, reason, next_action: next, purpose: d.purpose, urgency: d.urgency, decided_by, suspicious, automated: !!auto || isNoReply(m.from.email), flags };
 }
 
 /** The due date of a thread's task with its time and zone, read from the sentence that set it. */
@@ -202,9 +229,9 @@ function overlaps(a: { start: string; end: string }, b: { start: string; end: st
 }
 
 /** The full mailbox view: categories, threads, tasks, meeting proposals and follow-ups, with a person's choices applied. */
-export function buildMailboxView(data: MailboxData, state: MailboxState = EMPTY_STATE, opts: { now?: string; ai?: Record<string, AiPrediction> } = {}): MailboxView {
+export function buildMailboxView(data: MailboxData, state: MailboxState = EMPTY_STATE, opts: { now?: string; ai?: Record<string, AiPrediction>; aiCategories?: Record<string, AiCategory> } = {}): MailboxView {
   const now = opts.now ?? data.demo_clock ?? new Date().toISOString();
-  const ctx: Ctx = { user: data.user, state, now };
+  const ctx: Ctx = { user: data.user, state, now, aiCategories: opts.aiCategories ?? {} };
   const all = [...data.messages, ...state.outbox];
   const byId = new Map(all.map((m) => [m.id, m]));
   const insights: Record<string, MessageInsight> = {};
@@ -272,6 +299,8 @@ export function buildMailboxView(data: MailboxData, state: MailboxState = EMPTY_
   for (const th of threads) {
     const t = th.facts;
     if (!t?.task || th.category === "spam" || th.category === "promotions") continue;
+    const leads = th.message_ids.map((mid) => insights[mid]).filter(Boolean);
+    if (leads.length && leads.every((i) => i.automated)) continue; // a notification's "please do X" is not your task
     const id = `task:${th.key}`;
     const s = state.tasks[id];
     if (s?.dismissed) continue;
@@ -318,7 +347,7 @@ export function buildMailboxView(data: MailboxData, state: MailboxState = EMPTY_
       .map((mid) => byId.get(mid)!)
       .filter((m) => m.direction === "inbound")
       .map((m) => ({ m, s: detectScheduling(m.subject, splitQuoted(m.body).fresh, m.attachments.some((a) => /\.ics$/i.test(a.name))) }))
-      .find((x) => x.s);
+      .find((x) => x.s && !(x.s.kind === "meeting_request" && insights[x.m.id]?.automated));
     if (!sched) continue;
     const { m, s } = sched;
     const fresh = splitQuoted(m.body).fresh;
@@ -432,7 +461,7 @@ export function replyHeaders(view: MailboxView, threadKey: string, account?: Mai
   if (!th) return null;
   const targetId = th.draft?.reply_to?.email_id ?? [...th.message_ids].reverse().find((id) => view.messages.find((m) => m.id === id)?.direction === "inbound");
   const target = view.messages.find((m) => m.id === targetId);
-  if (!target) return null;
+  if (!target || isNoReply(target.from.email)) return null; // nobody reads replies to a no-reply address
   const me = (a: Address) => isMine(a, view.user) || (account ? lower(a.email) === lower(account.address) : false);
   const cc = [...target.to, ...target.cc].filter((a, i, arr) => !me(a) && lower(a.email) !== lower(target.from.email) && arr.findIndex((b) => lower(b.email) === lower(a.email)) === i);
   const subject = /^re:/i.test(target.subject) ? target.subject : `Re: ${target.subject}`;

@@ -41,6 +41,7 @@ export interface MailMessage {
   cc: Address[];
   subject: string;
   body: string; // plain text
+  html?: string; // the original HTML, for display only (sanitised when shown; kept in memory, never stored)
   received_at: string; // ISO 8601 with offset
   direction: "inbound" | "outbound";
   read: boolean;
@@ -72,6 +73,7 @@ export interface MessageInsight {
   urgency: Urgency;
   decided_by: "rules" | "ai" | "user";
   suspicious: boolean;
+  automated: boolean; // a no-reply notification, newsletter or system message: nobody to answer
   flags: ("quoted_history_ignored" | "spoofed_urgency" | "attachment_unverified" | "needs_review")[];
 }
 
