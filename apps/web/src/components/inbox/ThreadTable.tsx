@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
-import { Archive, ArrowUpDown, Download, Eye, Filter, Link2, MoreHorizontal, Reply, Search, Tag, TrendingUp, X } from "lucide-react";
+import { Archive, ArrowUpDown, Download, Eye, Filter, Link2, MoreHorizontal, Reply, Search, Tag, TrendingUp, X, Columns3, Rows3 } from "lucide-react";
 import type { Purpose, ThreadFacts, TriageResult, Urgency } from "@c16/core";
 import { decisionsOf, sortThreads, topUrgency } from "../../lib/views";
+import { ThreadBoard } from "./ThreadBoard";
+import type { SavedRun } from "../../repo";
 import { formatDay, formatReceived } from "../../lib/format";
-import { ACTION_META, AgeBadge, Avatar, Badge, Button, Menu, MenuCheck, MenuContent, MenuItem, MenuLabel, MenuSep, MenuTrigger, PURPOSE_LABEL, PurposeBadge, Tip, UrgencyBadge, cn } from "../../ui";
+import { ACTION_META, AgeBadge, Avatar, Badge, Button, Menu, MenuCheck, MenuContent, MenuItem, MenuLabel, MenuSep, MenuTrigger, PURPOSE_LABEL, PurposeBadge, Tip, UrgencyBadge, cn , Segmented } from "../../ui";
 
 export type SortKey = "priority" | "newest" | "oldest" | "due";
 export interface TableActions {
@@ -28,7 +30,9 @@ function exportCsv(r: TriageResult, rows: ThreadFacts[]) {
   URL.revokeObjectURL(url);
 }
 
-export function ThreadTable({ r, threads, title, selected, compact, actions }: { r: TriageResult; threads: ThreadFacts[]; title: string; selected?: string; compact: boolean; actions: TableActions }) {
+export type Layout = "table" | "board";
+
+export function ThreadTable({ r, run, threads, title, selected, compact, actions, layout = "table", onLayout }: { r: TriageResult; run: SavedRun; threads: ThreadFacts[]; title: string; selected?: string; compact: boolean; actions: TableActions; layout?: Layout; onLayout?: (l: Layout) => void }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("priority");
   const [types, setTypes] = useState<Purpose[]>([]);
@@ -62,6 +66,16 @@ export function ThreadTable({ r, threads, title, selected, compact, actions }: {
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
         <h2 className="mr-1 text-base font-semibold">{title}</h2>
         <Badge>{rows.length}</Badge>
+        {onLayout && !compact && (
+          <Segmented
+            value={layout}
+            onChange={onLayout}
+            options={[
+              { value: "table", label: <><Rows3 className="h-3.5 w-3.5" /> Table</> },
+              { value: "board", label: <><Columns3 className="h-3.5 w-3.5" /> Board</> },
+            ]}
+          />
+        )}
         <div className={cn("flex h-8 items-center gap-2 rounded-lg border border-line bg-subtle px-2.5 focus-within:border-brand/50 focus-within:bg-surface", compact ? "order-last w-full" : "order-last w-full sm:order-none sm:ml-auto sm:w-56")}>
           <Search className="h-3.5 w-3.5 text-muted" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter threads…" aria-label="Filter threads" className="w-full bg-transparent text-sm outline-none placeholder:text-muted" />
@@ -150,6 +164,12 @@ export function ThreadTable({ r, threads, title, selected, compact, actions }: {
         </div>
       )}
 
+      {layout === "board" && !compact ? (
+        <div className="min-h-0 flex-1">
+          <ThreadBoard run={run} threads={rows} onOpen={actions.open} />
+        </div>
+      ) : (
+        <>
       {/* Table */}
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
@@ -286,6 +306,8 @@ export function ThreadTable({ r, threads, title, selected, compact, actions }: {
         </table>
         {rows.length === 0 && <div className="px-6 py-16 text-center text-sm text-muted">No threads match this view.</div>}
       </div>
+        </>
+      )}
       <div className="flex items-center justify-between border-t border-line px-4 py-2 text-xs text-muted">
         <span>
           {rows.length} of {r.threads.length} threads · {r.decisions.length} emails

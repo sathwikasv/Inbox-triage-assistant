@@ -1,11 +1,30 @@
-import type { Decision, NextActionKind, ThreadFacts, TriageResult, Urgency } from "@c16/core";
+import { needsApproval, type Decision, type NextActionKind, type ThreadFacts, type TriageResult, type Urgency } from "@c16/core";
+import type { SavedRun } from "../repo";
 
 export interface View {
   id: string;
   label: string;
   icon: string;
-  test: (t: ThreadFacts, ds: Decision[]) => boolean;
+  test: (t: ThreadFacts, ds: Decision[], run?: SavedRun) => boolean;
 }
+
+const replyBody = (t: ThreadFacts, run?: SavedRun) => run?.edits[t.thread_key]?.body ?? run?.result.drafts.find((d) => d.thread_key === t.thread_key)?.body;
+
+/** Reply pipeline views: where each drafted reply is on its way out of the tool. */
+export const REPLY_VIEWS: View[] = [
+  { id: "drafts", label: "Drafts to review", icon: "pen", test: (t, _ds, run) => t.draft_mode !== "none" && !run?.replies?.[t.thread_key] && !run?.edits[t.thread_key] },
+  {
+    id: "approval",
+    label: "Awaiting approval",
+    icon: "badge",
+    test: (t, _ds, run) => {
+      const body = replyBody(t, run);
+      return t.draft_mode !== "none" && !!body && needsApproval(body, t).needed && !run?.approvals?.[t.thread_key] && !run?.replies?.[t.thread_key];
+    },
+  },
+  { id: "handed", label: "Handed off", icon: "send", test: (t, _ds, run) => !!run?.replies?.[t.thread_key] && !run.replies[t.thread_key].replied_at },
+  { id: "replied", label: "Replied", icon: "mailcheck", test: (t, _ds, run) => !!run?.replies?.[t.thread_key]?.replied_at },
+];
 
 const needsReview = (t: ThreadFacts, ds: Decision[]) => ds.some((d) => d.review?.needed) || t.inferred_links.length > 0;
 

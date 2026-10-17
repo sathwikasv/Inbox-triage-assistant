@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AlertTriangle, Archive, Bot, ChevronDown, MoreHorizontal, ShieldAlert, Tag } from "lucide-react";
-import type { Decision, Purpose, TaskStatus, Urgency } from "@c16/core";
+import { SPOOFED_URGENCY, splitQuoted, type Decision, type Purpose, type TaskStatus, type Urgency } from "@c16/core";
 import { formatReceived } from "../../lib/format";
 import { useTriage } from "../../store/triage";
 import { can } from "../../lib/permissions";
@@ -37,6 +37,8 @@ export function MessageCard({ d, edited, active, collapsed: startCollapsed }: { 
   const [collapsed, setCollapsed] = useState(!!startCollapsed);
   const [why, setWhy] = useState(false);
   const quarantined = d.thread_key === "QUARANTINE";
+  const { fresh: freshText, quoted } = splitQuoted(d.body);
+  const fresh = quoted ? freshText : d.body;
   const editable = can(role, "edit_decision") && !quarantined;
 
   return (
@@ -64,6 +66,21 @@ export function MessageCard({ d, edited, active, collapsed: startCollapsed }: { 
             <StatusBadge status={d.status} />
             {d.action_needed && <Badge tone="brand">action</Badge>}
             {d.duplicate_of && <Badge>duplicate of {d.duplicate_of}</Badge>}
+            {d.explain.urgency === SPOOFED_URGENCY && (
+              <Badge tone="amber" title="The email uses urgent wording but asks nothing of us, so the urgency is not raised">
+                spoofed urgency ignored
+              </Badge>
+            )}
+            {d.facts.some((f) => f.kind === "attachment_claim") && (
+              <Badge tone="amber" title="The email says a file is attached; the import carries no attachments, so it cannot be verified">
+                attachment claimed, unverified
+              </Badge>
+            )}
+            {quoted && (
+              <Badge title="Quoted text from an older email is shown but never used for facts or actions">
+                quoted history ignored
+              </Badge>
+            )}
             {d.ai && (
               <Badge tone={d.ai.decided_by === "both" ? "green" : "violet"} title={`${d.ai.source}: ${d.ai.reason}`}>
                 <Bot className="h-3 w-3" /> AI {d.ai.decided_by === "both" ? "agrees" : d.ai.decided_by === "ai" ? "decided" : "overruled"} · {Math.round(d.ai.confidence * 100)}%
@@ -114,7 +131,13 @@ export function MessageCard({ d, edited, active, collapsed: startCollapsed }: { 
         <div className="px-4 pb-4 pl-[3.75rem]">
           <div className={cn("mt-3", quarantined && "rounded-lg border border-rose-500/30 bg-rose-500/5 p-3")}>
             {quarantined && <div className="label-xs mb-1.5 text-rose-600">Shown as data · never followed</div>}
-            <Highlighted body={d.body} quotes={d.facts.map((f) => f.evidence.quote)} active={active} />
+            <Highlighted body={fresh} quotes={d.facts.map((f) => f.evidence.quote)} active={active} />
+            {quoted && (
+              <div className="mt-3 border-l-2 border-line pl-3">
+                <div className="label-xs mb-1">Quoted history · not used for facts or actions</div>
+                <p className="whitespace-pre-wrap text-sm leading-6 text-muted">{quoted}</p>
+              </div>
+            )}
           </div>
           {d.review?.needed && (
             <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">

@@ -2,6 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { AlertTriangle, BarChart3, CheckCircle2, Eye, Inbox, ListChecks, Reply, ShieldAlert, TrendingUp, Archive, PenLine } from "lucide-react";
 import type { NextActionKind, Purpose } from "@c16/core";
 import { useTriage } from "../store/triage";
+import { runBurden } from "../lib/burden";
+import { needsApproval } from "@c16/core";
 import { decisionsOf, topUrgency } from "../lib/views";
 import { formatReceived } from "../lib/format";
 import { BarList, ChartCard, Columns, Meter, StackedBar, StatTile } from "../components/charts";
@@ -32,6 +34,11 @@ export default function InsightsPage() {
   const drafts = r.drafts.length;
   const edited = Object.keys(run.edits).length;
   const approved = Object.keys(run.approvals ?? {}).length;
+  const burden = runBurden(run);
+  const handedOff = Object.keys(run.replies ?? {}).length;
+  const replied = Object.values(run.replies ?? {}).filter((x) => x.replied_at).length;
+  const needApproval = r.drafts.filter((d) => needsApproval(run.edits[d.thread_key]?.body ?? d.body, r.threads.find((t) => t.thread_key === d.thread_key)!).needed).length;
+  const missed = m.labels_applied ? m.seeded_total - m.seeded_recovered : null;
 
   const byType = (Object.keys(PURPOSE_LABEL) as Purpose[]).map((p) => ({ label: PURPOSE_LABEL[p], value: r.decisions.filter((d) => d.purpose === p).length })).filter((x) => x.value > 0).sort((a, b) => b.value - a.value);
   const urg = (u: string) => r.decisions.filter((d) => d.urgency === u).length;
@@ -70,6 +77,32 @@ export default function InsightsPage() {
         <StatTile label="Resolved" value={threads.filter((t) => t.status === "closed").length} caption="chasers suppressed" icon={<CheckCircle2 />} accent="green" />
         <StatTile label="Quarantined" value={r.decisions.filter((d) => d.status === "quarantined").length} caption={`policy auto_send: ${r.policy.auto_send}`} icon={<ShieldAlert />} accent="red" />
       </div>
+
+      <section className="card p-5">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold">Pilot metrics</h3>
+            <p className="mt-0.5 text-xs text-muted">What the draft-only pilot measures: missed critical items and draft correction burden, plus how far each reply got.</p>
+          </div>
+          <Badge tone={missed === 0 ? "green" : missed === null ? "neutral" : "red"}>{missed === null ? "missed critical items: n/a (changed input)" : `missed critical items: ${missed}`}</Badge>
+        </div>
+        <div className="mt-4 grid gap-6 md:grid-cols-[16rem_1fr]">
+          <div>
+            <div className="label-xs">Draft correction burden</div>
+            <div className="mt-1 text-4xl font-semibold tracking-tight">{Math.round(burden.avg * 100)}%</div>
+            <p className="mt-1 text-xs text-muted">
+              average share of words changed in {burden.edited} edited repl{burden.edited === 1 ? "y" : "ies"}; {burden.unchanged} of {burden.drafts} kept as suggested
+            </p>
+          </div>
+          <div className="space-y-3">
+            <Meter label="Drafted" value={drafts} max={drafts} display={`${drafts}`} />
+            <Meter label="Reviewed (saved by a person)" value={edited} max={drafts} />
+            <Meter label="Approved (of those that need it)" value={Math.min(approved, needApproval)} max={needApproval || 1} display={`${Math.min(approved, needApproval)}/${needApproval}`} />
+            <Meter label="Handed off (copy or .eml)" value={handedOff} max={drafts} />
+            <Meter label="Replied from a mail app" value={replied} max={drafts} />
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Emails by type" subtitle="What the inbox is asking for" table={{ head: ["Type", "Emails"], rows: byType.map((b) => [b.label, b.value]) }}>

@@ -4,6 +4,7 @@ import { computeMetrics, type Decision } from "@c16/core";
 import { useTriage } from "../store/triage";
 import { LABELS, labelsFor } from "../lib/starter";
 import { Meter } from "../components/charts";
+import { AccuracyPanel } from "../components/AccuracyPanel";
 import { Badge, Button, EmptyState, PURPOSE_LABEL, cn } from "../ui";
 
 const SHOW_ME: Record<number, { to: string; label: string }> = {
@@ -70,6 +71,8 @@ export default function JudgePage() {
           );
         })}
       </div>
+
+      <AccuracyPanel />
 
       {m.labels_applied && (
         <>

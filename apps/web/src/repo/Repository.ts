@@ -1,8 +1,17 @@
 import type { Decision, Draft, LintViolation, ThreadFacts, TriageResult } from "@c16/core";
 
-export type AuditType = "import" | "reimport" | "edit_draft" | "edit_decision" | "preview_label" | "preview_archive" | "save" | "quarantine" | "escalate" | "watch" | "archive" | "approve_draft";
+export type AuditType = "import" | "reimport" | "edit_draft" | "edit_decision" | "preview_label" | "preview_archive" | "save" | "quarantine" | "escalate" | "watch" | "archive" | "approve_draft" | "handoff" | "mark_replied";
 export type Role = "viewer" | "reviewer" | "approver";
 export type ThreadAction = "escalate" | "watch" | "archive";
+export type HandoffHow = "copy" | "eml";
+
+/** A reviewed reply that left the tool for a person to send from their own mail app. */
+export interface ReplyHandoff {
+  how: HandoffHow;
+  at: string;
+  body: string;
+  replied_at: string | null; // the person confirmed they sent it
+}
 
 /** Optional AI pass that ran at import (API only). */
 export interface AiStatus {
@@ -51,6 +60,7 @@ export interface SavedRun {
   storage: "local" | "api";
   ai?: AiStatus;
   approvals?: Record<string, { by: string; at: string }>; // thread_key → Approver sign-off on the current draft
+  replies?: Record<string, ReplyHandoff>; // thread_key → hand-off of the reviewed reply
 }
 
 export class LintRejected extends Error {
@@ -71,4 +81,6 @@ export interface Repository {
   act(runId: string, threadKey: string, action: ThreadAction, opts?: { to?: string; note?: string }): Promise<SavedRun>;
   classify(subject: string, body: string): Promise<ClassifyResult>;
   approveDraft(runId: string, threadKey: string, role: Role): Promise<SavedRun>;
+  handoff(runId: string, threadKey: string, how: HandoffHow, role: Role): Promise<SavedRun>;
+  markReplied(runId: string, threadKey: string, role: Role): Promise<SavedRun>;
 }

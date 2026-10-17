@@ -6,7 +6,7 @@ export const ROLES: Record<Role, { label: string; description: string }> = {
   approver: { label: "Approver", description: "Everything a Reviewer can do, plus signs off drafts before they leave the team." },
 };
 
-export type Permission = "view" | "edit_decision" | "edit_draft" | "preview" | "escalate" | "approve_draft" | "apply_labels" | "send";
+export type Permission = "view" | "edit_decision" | "edit_draft" | "preview" | "escalate" | "approve_draft" | "handoff" | "apply_labels" | "send";
 
 /** The permission matrix shown in Settings and enforced in the UI. Nobody can send: the policy is draft-only. */
 export const PERMISSIONS: { id: Permission; label: string; roles: Role[]; note?: string }[] = [
@@ -16,7 +16,8 @@ export const PERMISSIONS: { id: Permission; label: string; roles: Role[]; note?:
   { id: "preview", label: "Preview labels and archive", roles: ["reviewer", "approver"] },
   { id: "escalate", label: "Record escalations and watch items", roles: ["reviewer", "approver"] },
   { id: "approve_draft", label: "Approve drafts that state dates or commitments", roles: ["approver"] },
-  { id: "apply_labels", label: "Apply labels in the real mailbox", roles: [], note: "planned with the Gmail connector, after approval" },
+  { id: "handoff", label: "Copy or download a reviewed reply (.eml draft)", roles: ["reviewer", "approver"], note: "only after the lint passes and, for dates, commitments or escalations, an Approver signs off" },
+  { id: "apply_labels", label: "Apply labels or archive in a mailbox", roles: [], note: "not in the MVP: label and archive are previews only" },
   { id: "send", label: "Send email", roles: [], note: "disabled by policy: draft_only = true, auto_send = false" },
 ];
 

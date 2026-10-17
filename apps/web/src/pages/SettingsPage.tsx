@@ -141,12 +141,12 @@ export default function SettingsPage() {
           </div>
           <div className="rounded-xl border border-line p-4">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Mail className="h-4 w-4 text-rose-500" /> Gmail mailbox
+              <Mail className="h-4 w-4 text-emerald-600" /> Replies leave by hand
             </div>
             <div className="mt-1">
-              <Badge tone="amber">planned</Badge>
+              <Badge tone="green">copy · .eml draft</Badge>
             </div>
-            <p className="mt-2 text-xs text-muted">Connect a spare mailbox: sync, apply labels after approval, save replies as Gmail drafts. Never send.</p>
+            <p className="mt-2 text-xs text-muted">A reviewed, approved reply is copied or downloaded as an unsent .eml and sent by a person from their own mail app. No mailbox is connected.</p>
           </div>
         </div>
       </Card>

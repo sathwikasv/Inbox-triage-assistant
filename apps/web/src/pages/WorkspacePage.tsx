@@ -3,9 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Inbox, Upload } from "lucide-react";
 import { useTriage } from "../store/triage";
 import { can } from "../lib/permissions";
-import { VIEWS, decisionsOf, sortThreads } from "../lib/views";
+import { REPLY_VIEWS, VIEWS, decisionsOf, sortThreads } from "../lib/views";
 import { InboxSidebar, threadLabels } from "../components/inbox/InboxSidebar";
-import { ThreadTable } from "../components/inbox/ThreadTable";
+import { ThreadTable, type Layout } from "../components/inbox/ThreadTable";
 import { ThreadDetail } from "../components/inbox/ThreadDetail";
 import { EscalateDialog } from "../components/inbox/EscalateDialog";
 import { Button, EmptyState, cn } from "../ui";
@@ -18,14 +18,21 @@ export default function WorkspacePage() {
   const [view, setView] = useState("all");
   const [label, setLabel] = useState<string | null>(null);
   const [escalating, setEscalating] = useState<string[]>([]);
+  const [layout, setLayout] = useState<Layout>(() => {
+    try {
+      return localStorage.getItem("c16.layout") === "board" ? "board" : "table";
+    } catch {
+      return "table";
+    }
+  });
   const [replySignal, setReplySignal] = useState(0);
   const r = run?.result;
 
   const threads = useMemo(() => {
     if (!r) return [];
-    const v = VIEWS.find((x) => x.id === view)!;
-    return sortThreads(r, r.threads.filter((t) => (label ? threadLabels(r, t.thread_key).includes(label) : v.test(t, decisionsOf(r, t)))));
-  }, [r, view, label]);
+    const v = [...VIEWS, ...REPLY_VIEWS].find((x) => x.id === view)!;
+    return sortThreads(r, r.threads.filter((t) => (label ? threadLabels(r, t.thread_key).includes(label) : v.test(t, decisionsOf(r, t), run!))));
+  }, [r, run, view, label]);
   const open = (k: string) => navigate(`/inbox/${encodeURIComponent(k)}`);
   const selected = key && r?.threads.some((t) => t.thread_key === key) ? key : undefined;
 
@@ -71,7 +78,7 @@ export default function WorkspacePage() {
     );
   }
 
-  const title = label ? `Label: ${label}` : VIEWS.find((v) => v.id === view)!.label;
+  const title = label ? `Label: ${label}` : [...VIEWS, ...REPLY_VIEWS].find((v) => v.id === view)!.label;
   const canAct = can(role, "escalate");
 
   return (
@@ -82,6 +89,16 @@ export default function WorkspacePage() {
       <div className={cn("min-h-0 border-r border-line", selected && "hidden xl:block")}>
         <ThreadTable
           r={r}
+          run={run}
+          layout={layout}
+          onLayout={(l) => {
+            setLayout(l);
+            try {
+              localStorage.setItem("c16.layout", l);
+            } catch {
+              /* preference not kept */
+            }
+          }}
           threads={threads}
           title={title}
           selected={selected}
