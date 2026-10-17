@@ -166,6 +166,22 @@ describe("drafts and previews", () => {
     expect((await call("POST", `/runs/${json.runId}/actions`, { thread_key: "T-export", action: "send" })).status).toBe(400);
   });
 
+  it("only an Approver can approve a draft; editing it withdraws the approval", async () => {
+    const { json } = await call("POST", "/runs", fixture);
+    const path = `/runs/${json.runId}/drafts/T-dup-ticket/approve`;
+    const asReviewer = await fetch(base + path, { method: "POST", headers: { "x-role": "reviewer" } });
+    expect(asReviewer.status).toBe(403);
+    const ok = await fetch(base + path, { method: "POST", headers: { "x-role": "approver" } });
+    expect(ok.status).toBe(200);
+    const run = await ok.json();
+    expect(run.approvals["T-dup-ticket"]).toMatchObject({ by: "approver" });
+    expect(run.audit.at(-1)).toMatchObject({ type: "approve_draft", thread_key: "T-dup-ticket" });
+    const edited = await call("PUT", `/runs/${json.runId}/drafts/T-dup-ticket`, { body: "Dev has the fix, due 20 October 2026." });
+    expect(edited.json.approvals["T-dup-ticket"]).toBeUndefined();
+    expect(edited.json.audit.at(-1).detail).toContain("previous approval withdrawn");
+    expect((await fetch(base + `/runs/${json.runId}/drafts/QUARANTINE/approve`, { method: "POST", headers: { "x-role": "approver" } })).status).toBe(404);
+  });
+
   it("save marks the run reviewed and it reloads from the database", async () => {
     const { json } = await call("POST", "/runs", fixture);
     await call("POST", `/runs/${json.runId}/save`);
