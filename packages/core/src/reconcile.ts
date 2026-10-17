@@ -58,6 +58,7 @@ export function reconcile(items: AnalyzedEmail[], assign: Map<string, ThreadAssi
       const d: Decision = {
         email_id: id,
         subject: a.email.subject,
+        body: a.email.body,
         received_at: a.email.received_at,
         thread_key: key,
         purpose,
