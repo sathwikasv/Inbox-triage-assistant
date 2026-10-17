@@ -94,7 +94,8 @@ export async function fetchYahoo(tok: ProviderTokens, max = 30) {
             to: addr(p.to),
             cc: addr(p.cc),
             subject: p.subject || "(no subject)",
-            body: (p.text || "").slice(0, 8000) || "(empty message)",
+            body: tidy(p.text || "").slice(0, 8000) || "(empty message)",
+            ...(typeof p.html === "string" && p.html.length <= 300_000 ? { html: p.html } : {}),
             received_at: iso(p.date ?? (msg.internalDate as Date) ?? new Date()),
             direction,
             read: msg.flags?.has("\\Seen") ?? false,
@@ -115,6 +116,17 @@ export async function fetchYahoo(tok: ProviderTokens, max = 30) {
     messages: out,
   };
 }
+
+/** Plain text without "[image: …]" placeholders, layout indentation or runs of blank lines. */
+const tidy = (t: string) =>
+  t
+    .replace(/\r\n?/g, "\n")
+    .replace(/\[image:[^\]]*\]/gi, "")
+    .split("\n")
+    .map((l) => l.replace(/[ \t\u00a0]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
 export async function sendYahoo(tok: ProviderTokens, m: { to: { name?: string; email: string }[]; cc: { name?: string; email: string }[]; subject: string; body: string; in_reply_to: string | null }) {
   if (!tok.can_send) throw new Error("sending is not allowed for this Yahoo account yet");

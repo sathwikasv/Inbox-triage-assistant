@@ -57,14 +57,31 @@ export function isoWithOffset(ms: number): string {
   return `${local}${off < 0 ? "-" : "+"}${pad(Math.trunc(off / 60))}:${pad(off % 60)}`;
 }
 
+/** Readable text from an HTML email: block elements become line breaks, images and styles are dropped. */
 export function htmlToText(h: string): string {
-  return (
-    new DOMParser()
-      .parseFromString(h.replace(/<(br|\/p|\/div|\/li|\/tr)>/gi, "\n$&"), "text/html")
-      .body.textContent?.replace(/\n{3,}/g, "\n\n")
-      .trim() ?? ""
-  );
+  const doc = new DOMParser().parseFromString(h, "text/html");
+  doc.querySelectorAll("style, script, head, title, img, svg, noscript").forEach((n) => n.remove());
+  doc.querySelectorAll("li").forEach((n) => n.prepend("• "));
+  doc.querySelectorAll("br").forEach((n) => n.replaceWith("\n"));
+  doc.querySelectorAll("p, div, li, tr, h1, h2, h3, h4, h5, h6, table, blockquote, section, article, header, footer").forEach((n) => n.append("\n"));
+  return tidyText(doc.body?.textContent ?? "");
 }
+
+/** Plain-text bodies: no "[image: …]" placeholders, no layout indentation, at most one blank line in a row. */
+export function tidyText(t: string): string {
+  return t
+    .replace(/\r\n?/g, "\n")
+    .replace(/\[image:[^\]]*\]/gi, "")
+    .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
+    .split("\n")
+    .map((l) => l.replace(/[ \t]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** HTML kept for display only (in memory), capped so a huge newsletter cannot slow the app down. */
+export const keepHtml = (h: string) => (h && h.length <= 300_000 ? h : undefined);
 
 /** Settings a person enters once (OAuth client IDs are public identifiers, not secrets). */
 export const CONFIG_KEYS = { google: "c16.google_client_id", microsoft: "c16.ms_client_id", api: "c16.api_url" } as const;
