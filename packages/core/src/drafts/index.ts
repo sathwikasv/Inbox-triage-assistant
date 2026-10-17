@@ -4,6 +4,7 @@ import { lintDraft } from "./lint.js";
 
 export { lintDraft, allowedDates, LINT_RULES } from "./lint.js";
 export { templateDraft } from "./templates.js";
+export { suggestFixes, type DraftSuggestion } from "./suggest.js";
 
 /** One template draft per thread that needs a reply or acknowledgement, linted against the thread's facts. */
 export function buildDrafts(threads: ThreadFacts[], decisions: Decision[]): Draft[] {
