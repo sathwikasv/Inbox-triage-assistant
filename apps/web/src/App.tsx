@@ -3,6 +3,8 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import ImportPage from "./pages/ImportPage";
 import TriagePage from "./pages/TriagePage";
 import ThreadPage from "./pages/ThreadPage";
+import ReviewPage from "./pages/ReviewPage";
+import JudgePage from "./pages/JudgePage";
 import { PolicyBadge } from "./components/Banners";
 import { useTriage } from "./store/triage";
 
@@ -29,6 +31,12 @@ export default function App() {
             <NavLink to="/triage" className={nav}>
               Triage
             </NavLink>
+            <NavLink to="/review" className={nav}>
+              Review
+            </NavLink>
+            <NavLink to="/judge" className={nav}>
+              Judge view
+            </NavLink>
           </nav>
           <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span>{repo.kind === "api" ? "Saved to API" : "Saved in this browser"}</span>
@@ -44,6 +52,8 @@ export default function App() {
             <Route path="/" element={<ImportPage />} />
             <Route path="/triage" element={<TriagePage />} />
             <Route path="/thread/:key" element={<ThreadPage />} />
+            <Route path="/review" element={<ReviewPage />} />
+            <Route path="/judge" element={<JudgePage />} />
           </Routes>
         )}
       </main>
