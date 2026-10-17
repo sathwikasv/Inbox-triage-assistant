@@ -6,7 +6,8 @@ import { assignThreads } from "./threading.js";
 import { reconcile } from "./reconcile.js";
 import { buildDrafts } from "./drafts/index.js";
 import { computeMetrics } from "./metrics.js";
-import type { Labels, RawEmail, TriageResult } from "./types.js";
+import { route } from "./route.js";
+import type { AiPrediction, Labels, RawEmail, TriageResult } from "./types.js";
 
 /** JSON with object keys sorted, so key order in the file does not change the hash. */
 function canonicalJson(v: unknown): string {
@@ -37,14 +38,16 @@ export function fixtureHash(input: unknown): string {
  * Import → validate → order → analyze → thread → reconcile → draft → measure.
  * Pass labels only for the input they were written for (the starter fixture); otherwise Check 1 is reported as not applicable.
  */
-export function runTriage(input: unknown, opts: { labels?: Labels } = {}): TriageResult {
+export function runTriage(input: unknown, opts: { labels?: Labels; ai?: Record<string, AiPrediction> } = {}): TriageResult {
   const fx = parseFixture(input);
   const { emails, warnings } = dedupeById(fx.records.emails as RawEmail[]);
   const ordered = sortEmails(emails);
   for (const e of ordered) if (e.received_at === null) warnings.push(`${e.email_id} has received_at: null (unknown); placed last and flagged for review.`);
 
-  const analyzed = ordered.map(analyzeEmail);
+  const analyzed = ordered.map((e) => analyzeEmail(e, opts.ai?.[e.email_id]));
   const { decisions, threads } = reconcile(analyzed, assignThreads(analyzed));
+  const asOf = ordered.filter((e) => e.received_at).at(-1)?.received_at ?? null;
+  route(threads, decisions, asOf);
 
   if (!policyIntact(POLICY) || !Object.isFrozen(POLICY)) throw new Error("policy changed during triage; refusing to return a result");
   const result = {
@@ -52,6 +55,7 @@ export function runTriage(input: unknown, opts: { labels?: Labels } = {}): Triag
     fixture_hash: fixtureHash(input),
     policy: POLICY,
     ordered_email_ids: ordered.map((e) => e.email_id),
+    as_of: asOf,
     decisions,
     threads,
     drafts: buildDrafts(threads, decisions),

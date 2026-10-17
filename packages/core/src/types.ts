@@ -83,6 +83,36 @@ export interface Decision {
   proposed: ProposedActions;
   explain: { purpose: string; urgency: string; thread: string };
   notes: string[];
+  age_days: number | null; // days between this email and the newest email in the import (null if received_at unknown)
+  ai?: AiOpinion; // optional model opinion on the email type (see runTriage opts.ai)
+  review: { needed: boolean; reason: string }; // a person should check this decision
+}
+
+/** A model's opinion on one email's type. Facts never come from the model. */
+export interface AiPrediction {
+  purpose: Purpose;
+  confidence: number; // 0..1
+  reason: string;
+  source: string; // e.g. "gemini-3.5-flash-lite"
+}
+
+export interface AiOpinion extends AiPrediction {
+  rule_purpose: Purpose | null; // what the rules said (null when no rule matched)
+  decided_by: "rules" | "ai" | "both";
+}
+
+export type NextActionKind = "reply" | "escalate" | "review" | "watch" | "archive";
+
+export interface NextAction {
+  kind: NextActionKind;
+  label: string; // short button text, e.g. "Reply" or "Escalate: assign an owner"
+  reason: string;
+}
+
+export interface Escalation {
+  code: "no_owner" | "suspicious" | "blocked" | "due_soon" | "overdue" | "repeated_chaser";
+  severity: "high" | "medium";
+  reason: string;
 }
 
 export interface DueEntry {
@@ -115,6 +145,10 @@ export interface ThreadFacts {
   draft_mode: "reply" | "ack" | "none";
   draft_reason: string;
   email_ids: string[];
+  next_action: NextAction;
+  escalations: Escalation[];
+  last_activity: string | null; // received_at of the newest email in the thread
+  age_days: number | null; // days the thread has been open, as of the newest email in the import
 }
 
 export interface LintViolation {
@@ -155,6 +189,7 @@ export interface TriageResult {
   fixture_hash: string;
   policy: Policy;
   ordered_email_ids: string[];
+  as_of: string | null; // newest received_at in the import; ages and due-soon checks are relative to it
   decisions: Decision[];
   threads: ThreadFacts[];
   drafts: Draft[];
