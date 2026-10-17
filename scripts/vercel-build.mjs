@@ -22,7 +22,7 @@ mkdirSync(`${fn}/${nested}`, { recursive: true });
 const optional = ["kerberos", "@mongodb-js/zstd", "@aws-sdk/credential-providers", "gcp-metadata", "snappy", "aws4", "mongodb-client-encryption", "bson-ext"];
 run(
   [
-    `pnpm --filter api exec esbuild src/vercel.ts --bundle --platform=node --target=node20 --format=esm`,
+    `pnpm --filter api exec esbuild src/vercel.ts --bundle --platform=node --target=node22 --format=esm`,
     `--outfile="${fn}/${nested}/index.mjs"`,
     ...optional.map((p) => `--external:${p}`),
     `--banner:js="import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);"`,
@@ -30,7 +30,7 @@ run(
   ].join(" "),
 );
 for (const f of ["data/fixture/C16/fixture.json", "data/labels/C16_labels.json"]) cpSync(`${root}${f}`, `${fn}/${f}`);
-writeFileSync(`${fn}/.vc-config.json`, JSON.stringify({ runtime: "nodejs20.x", handler: `${nested}/index.mjs`, launcherType: "Nodejs", shouldAddHelpers: false, maxDuration: 60 }, null, 2));
+writeFileSync(`${fn}/.vc-config.json`, JSON.stringify({ runtime: "nodejs22.x", handler: `${nested}/index.mjs`, launcherType: "Nodejs", shouldAddHelpers: false, maxDuration: 60 }, null, 2));
 
 writeFileSync(
   `${out}/config.json`,

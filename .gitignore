@@ -21,3 +21,6 @@ playwright-report/
 
 # vercel build output and project link
 .vercel/
+
+.vercel
+.env*
