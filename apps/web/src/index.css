@@ -4,40 +4,33 @@
 
 @layer base {
   :root {
-    --canvas: 244 245 248;
+    --canvas: 246 248 252;
     --surface: 255 255 255;
-    --subtle: 248 249 251;
-    --line: 228 231 236;
-    --fg: 16 24 40;
-    --muted: 102 112 133;
-    --brand: 79 70 229;
+    --subtle: 240 244 249;
+    --line: 223 228 236;
+    --fg: 31 35 41;
+    --muted: 95 102 115;
+    --brand: 11 87 208;
     --brand-fg: 255 255 255;
-    --brand-soft: 238 240 255;
-    --nav: 12 17 32;
-    /* charts: validated reference blue (dataviz palette slot 1) and fixed status colours */
-    --series-1: 42 120 214;
-    --series-track: 205 226 251;
-    --status-critical: 208 59 59;
-    --status-warning: 250 178 25;
-    --status-neutral: 137 135 129;
+    --brand-soft: 211 227 253;
+    --nav: 32 33 36;
+    --row-read: 242 246 252;
+    --row-unread: 255 255 255;
     color-scheme: light;
   }
   .dark {
-    --canvas: 10 12 17;
-    --surface: 18 21 28;
-    --subtle: 24 28 37;
-    --line: 39 45 57;
-    --fg: 228 231 238;
-    --muted: 148 157 175;
-    --brand: 129 140 248;
-    --brand-fg: 12 17 32;
-    --brand-soft: 35 38 66;
-    --nav: 6 9 16;
-    --series-1: 57 135 229;
-    --series-track: 24 79 149;
-    --status-critical: 208 59 59;
-    --status-warning: 250 178 25;
-    --status-neutral: 137 135 129;
+    --canvas: 17 19 24;
+    --surface: 27 30 36;
+    --subtle: 36 40 48;
+    --line: 50 55 65;
+    --fg: 228 230 235;
+    --muted: 156 163 175;
+    --brand: 168 199 250;
+    --brand-fg: 6 46 111;
+    --brand-soft: 0 74 119;
+    --nav: 8 10 14;
+    --row-read: 23 26 32;
+    --row-unread: 31 35 42;
     color-scheme: dark;
   }
   html,
@@ -55,13 +48,23 @@
     scrollbar-width: thin;
     scrollbar-color: rgb(var(--line)) transparent;
   }
+  input[type="checkbox"] {
+    @apply h-4 w-4 cursor-pointer rounded accent-brand;
+  }
 }
 
 @layer components {
   .card {
-    @apply rounded-xl border border-line bg-surface shadow-card;
+    @apply rounded-2xl border border-line bg-surface shadow-card;
   }
   .label-xs {
     @apply text-[11px] font-semibold uppercase tracking-wider text-muted;
+  }
+  .field {
+    @apply rounded-lg border border-line bg-surface px-2 py-1 text-xs text-fg outline-none focus:border-brand/60;
+  }
+  /* striped background for tentative (not yet accepted) calendar blocks */
+  .tentative {
+    background-image: repeating-linear-gradient(135deg, rgb(var(--surface)) 0 6px, rgb(var(--subtle)) 6px 12px);
   }
 }

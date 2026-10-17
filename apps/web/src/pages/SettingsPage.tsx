@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CalendarDays, Check, Download, KeyRound, Loader2, Lock, Minus, RefreshCw, ShieldCheck, Trash2, UploadCloud, Users } from "lucide-react";
+import { CalendarDays, Check, Download, KeyRound, Loader2, Lock, Minus, RefreshCw, ShieldCheck, SlidersHorizontal, Trash2, UploadCloud, Users } from "lucide-react";
 import { fixtureToCsv, type Role } from "@c16/core";
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
@@ -31,6 +31,14 @@ function download(name: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+const SECTIONS: { value: Section; label: string; hint: string; icon: typeof Users }[] = [
+  { value: "accounts", label: "Accounts", hint: "Mailboxes and calendars", icon: Users },
+  { value: "integrations", label: "Integrations", hint: "Provider app IDs, server", icon: KeyRound },
+  { value: "preferences", label: "Preferences", hint: "Name, timezone, theme", icon: SlidersHorizontal },
+  { value: "safety", label: "Safety and permissions", hint: "Roles, rules, activity", icon: ShieldCheck },
+  { value: "import", label: "Import", hint: "CSV or JSON files", icon: UploadCloud },
+];
+
 export default function SettingsPage() {
   const [params, setParams] = useSearchParams();
   const section = (params.get("s") ?? "accounts") as Section;
@@ -38,23 +46,32 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted">Mailboxes, permissions and preferences for this workspace.</p>
       </div>
-      <Segmented
-        value={section}
-        onChange={(s) => setParams({ s })}
-        options={[
-          { value: "accounts", label: "Accounts" },
-          { value: "integrations", label: "Integrations" },
-          { value: "preferences", label: "Preferences" },
-          { value: "safety", label: "Safety and permissions" },
-          { value: "import", label: "Import" },
-        ]}
-      />
-      {section === "accounts" && <Accounts />}
-      {section === "integrations" && <Integrations />}
-      {section === "preferences" && <Preferences />}
-      {section === "safety" && <Safety />}
-      {section === "import" && <ImportSection />}
+      <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <nav aria-label="Settings sections" className="flex gap-1 overflow-x-auto lg:flex-col">
+          {SECTIONS.map((x) => (
+            <button
+              key={x.value}
+              onClick={() => setParams({ s: x.value })}
+              className={cn("flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition", section === x.value ? "bg-brand-soft font-semibold text-fg" : "text-fg/80 hover:bg-subtle")}
+            >
+              <x.icon className="h-4 w-4 shrink-0" />
+              <span>
+                <span className="block">{x.label}</span>
+                <span className="hidden text-[11px] font-normal text-muted lg:block">{x.hint}</span>
+              </span>
+            </button>
+          ))}
+        </nav>
+        <div className="min-w-0">
+          {section === "accounts" && <Accounts />}
+          {section === "integrations" && <Integrations />}
+          {section === "preferences" && <Preferences />}
+          {section === "safety" && <Safety />}
+          {section === "import" && <ImportSection />}
+        </div>
+      </div>
     </div>
   );
 }
