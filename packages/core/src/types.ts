@@ -71,6 +71,7 @@ export interface ProposedActions {
 export interface Decision {
   email_id: string;
   subject: string;
+  body: string;
   received_at: string | null;
   thread_key: string;
   purpose: Purpose;
