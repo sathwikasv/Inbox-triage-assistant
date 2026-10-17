@@ -1,5 +1,16 @@
 # Deploy
 
+## Vercel (one project: web app + server)
+`pnpm deploy:vercel` builds everything locally into `.vercel/output` (Build Output API) and deploys it as a production deployment:
+- the web app as static files, built with `VITE_API_URL=/api` and the public IDs from the repo-root `.env`;
+- the Express server as one function under `/api` on the same domain (no CORS needed), bundled with esbuild.
+
+Server settings are Vercel project environment variables, never built into the files: `SESSION_SECRET`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `WEB_ORIGIN` (the deployment's URL). No database is used there, so `/runs` answers 503. Yahoo needs a long-lived server session, so on Vercel it is not reliable; use Render for Yahoo.
+
+After the first deploy, add the deployment's URL to Google (Authorised JavaScript origins) and Microsoft (single-page application redirect URIs) next to `http://localhost:5173`.
+
+## Render + Amplify (alternative)
+
 Frontend: AWS Amplify Hosting (static build of `apps/web`). API: Render free web service (Docker, `apps/api`). Database: MongoDB Atlas M0.
 Deploy in this order: database → API → frontend → back to the API to set CORS.
 

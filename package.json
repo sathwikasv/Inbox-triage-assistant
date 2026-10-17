@@ -10,7 +10,8 @@
     "dev:api": "pnpm --filter api dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "deploy:vercel": "node scripts/vercel-build.mjs && npx --yes vercel@64.5.0 deploy --prebuilt --prod --yes"
   },
   "devDependencies": {
     "@eslint/js": "9.39.0",

@@ -71,11 +71,14 @@ export const CONFIG_KEYS = { google: "c16.google_client_id", microsoft: "c16.ms_
 
 export function setting(key: keyof typeof CONFIG_KEYS): string {
   const env = { google: import.meta.env.VITE_GOOGLE_CLIENT_ID, microsoft: import.meta.env.VITE_MS_CLIENT_ID, api: import.meta.env.VITE_API_URL }[key] as string | undefined;
+  let v: string;
   try {
-    return localStorage.getItem(CONFIG_KEYS[key]) || env || "";
+    v = localStorage.getItem(CONFIG_KEYS[key]) || env || "";
   } catch {
-    return env || "";
+    v = env || "";
   }
+  // A path such as "/api" means the server is on this site's own domain (the Vercel deployment).
+  return key === "api" && v.startsWith("/") ? `${window.location.origin}${v.replace(/\/$/, "")}` : v;
 }
 
 /** True once any real provider or the server is configured: the app then works on real mail, not demo data. */
