@@ -78,6 +78,9 @@ importers:
       '@types/nodemailer':
         specifier: 6.4.17
         version: 6.4.17
+      esbuild:
+        specifier: 0.21.5
+        version: 0.21.5
       mongodb-memory-server:
         specifier: ^10.1.2
         version: 10.4.3(socks@2.8.3)
