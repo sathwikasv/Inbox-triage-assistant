@@ -1,6 +1,7 @@
 import type { Decision, Draft, LintViolation, ThreadFacts, TriageResult } from "@c16/core";
 
-export type AuditType = "import" | "reimport" | "edit_draft" | "edit_decision" | "preview_label" | "preview_archive" | "save" | "quarantine" | "escalate" | "watch" | "archive";
+export type AuditType = "import" | "reimport" | "edit_draft" | "edit_decision" | "preview_label" | "preview_archive" | "save" | "quarantine" | "escalate" | "watch" | "archive" | "approve_draft";
+export type Role = "viewer" | "reviewer" | "approver";
 export type ThreadAction = "escalate" | "watch" | "archive";
 
 /** Optional AI pass that ran at import (API only). */
@@ -49,6 +50,7 @@ export interface SavedRun {
   audit: AuditEvent[];
   storage: "local" | "api";
   ai?: AiStatus;
+  approvals?: Record<string, { by: string; at: string }>; // thread_key → Approver sign-off on the current draft
 }
 
 export class LintRejected extends Error {
@@ -68,4 +70,5 @@ export interface Repository {
   markReviewed(runId: string): Promise<SavedRun>;
   act(runId: string, threadKey: string, action: ThreadAction, opts?: { to?: string; note?: string }): Promise<SavedRun>;
   classify(subject: string, body: string): Promise<ClassifyResult>;
+  approveDraft(runId: string, threadKey: string, role: Role): Promise<SavedRun>;
 }

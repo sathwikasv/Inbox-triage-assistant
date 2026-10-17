@@ -1,64 +1,46 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import type { Fact } from "@c16/core";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Inbox, Upload } from "lucide-react";
 import { useTriage } from "../store/triage";
-import { Icon } from "../components/Icons";
-import { Empty, QuarantineBanner } from "../components/Banners";
-import { InboxList } from "../components/InboxList";
-import { NextActionBar } from "../components/NextActionBar";
-import { SummaryCard } from "../components/SummaryCard";
-import { AssistantPanel } from "../components/AssistantPanel";
-import { Composer } from "../components/Composer";
-import { EmailCard } from "../components/EmailCard";
-import { StatusChip } from "../components/Chips";
+import { can } from "../lib/permissions";
 import { VIEWS, decisionsOf, sortThreads } from "../lib/views";
+import { InboxSidebar, threadLabels } from "../components/inbox/InboxSidebar";
+import { ThreadTable } from "../components/inbox/ThreadTable";
+import { ThreadDetail } from "../components/inbox/ThreadDetail";
+import { EscalateDialog } from "../components/inbox/EscalateDialog";
+import { Button, EmptyState, cn } from "../ui";
+import { STARTER_FIXTURE } from "../lib/starter";
 
 export default function WorkspacePage() {
   const { key } = useParams();
   const navigate = useNavigate();
-  const run = useTriage((s) => s.run);
-  const aiEnabled = useTriage((s) => s.ai.enabled);
-  const actionError = useTriage((s) => s.actionError);
-  const [viewId, setViewId] = useState("all");
-  const [query, setQuery] = useState("");
-  const [active, setActive] = useState<Fact["evidence"] | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const composerRef = useRef<HTMLTextAreaElement>(null);
-  const paneRef = useRef<HTMLDivElement>(null);
-
+  const { run, role, act, preview, importFixture } = useTriage();
+  const [view, setView] = useState("all");
+  const [label, setLabel] = useState<string | null>(null);
+  const [escalating, setEscalating] = useState<string[]>([]);
+  const [replySignal, setReplySignal] = useState(0);
   const r = run?.result;
-  const view = VIEWS.find((v) => v.id === viewId)!;
+
   const threads = useMemo(() => {
     if (!r) return [];
-    const q = query.trim().toLowerCase();
-    const match = (t: (typeof r.threads)[number]) =>
-      !q || [t.title, t.thread_key, t.owner ?? "", ...decisionsOf(r, t).map((d) => `${d.email_id} ${d.body} ${d.purpose}`)].join(" ").toLowerCase().includes(q);
-    return sortThreads(r, r.threads.filter((t) => view.test(t, decisionsOf(r, t)) && match(t)));
-  }, [r, view, query]);
-  const selectedKey = key ?? threads[0]?.thread_key;
-  const t = r?.threads.find((x) => x.thread_key === selectedKey);
+    const v = VIEWS.find((x) => x.id === view)!;
+    return sortThreads(r, r.threads.filter((t) => (label ? threadLabels(r, t.thread_key).includes(label) : v.test(t, decisionsOf(r, t)))));
+  }, [r, view, label]);
   const open = (k: string) => navigate(`/inbox/${encodeURIComponent(k)}`);
+  const selected = key && r?.threads.some((t) => t.thread_key === key) ? key : undefined;
 
-  useEffect(() => {
-    setActive(null);
-    paneRef.current?.scrollTo({ top: 0 });
-  }, [selectedKey]);
-
-  // Keyboard: j/k next/previous thread, "/" search, "r" reply.
+  // j / k move through the list; r opens the reply; Esc closes the thread.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || e.metaKey || e.ctrlKey || e.altKey) return;
-      const i = threads.findIndex((x) => x.thread_key === selectedKey);
+      const i = threads.findIndex((t) => t.thread_key === selected);
       if (e.key === "j" && threads[i + 1]) open(threads[i + 1].thread_key);
       else if (e.key === "k" && i > 0) open(threads[i - 1].thread_key);
-      else if (e.key === "/") {
+      else if (e.key === "r" && selected) {
         e.preventDefault();
-        searchRef.current?.focus();
-      } else if (e.key === "r") {
-        e.preventDefault();
-        composerRef.current?.focus();
-      } else return;
+        setReplySignal((n) => n + 1);
+      } else if (e.key === "Escape" && selected) navigate("/inbox");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -66,114 +48,72 @@ export default function WorkspacePage() {
 
   if (!run || !r) {
     return (
-      <div className="p-6">
-        <Empty>
-          No inbox imported yet. <Link className="text-indigo-700 underline" to="/">Import the fixture</Link> to start.
-        </Empty>
+      <div className="grid h-full place-items-center p-6">
+        <div className="card w-full max-w-lg">
+          <EmptyState
+            icon={<Inbox />}
+            title="No inbox loaded"
+            action={
+              <div className="flex gap-2">
+                <Button variant="primary" size="md" onClick={() => importFixture(STARTER_FIXTURE, "starter fixture (data/fixture/C16/fixture.json)")}>
+                  Load the 12-email fixture
+                </Button>
+                <Button size="md" onClick={() => navigate("/")}>
+                  <Upload className="h-4 w-4" /> Other sources
+                </Button>
+              </div>
+            }
+          >
+            Import an inbox file to triage it. Nothing is ever sent: replies are drafts for a person to review.
+          </EmptyState>
+        </div>
       </div>
     );
   }
 
-  const ds = t ? decisionsOf(r, t) : [];
-  const draft = t ? r.drafts.find((d) => d.thread_key === t.thread_key) : undefined;
-  const show = (e: Fact["evidence"]) => {
-    setActive(e);
-    document.getElementById(e.email_id)?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
+  const title = label ? `Label: ${label}` : VIEWS.find((v) => v.id === view)!.label;
+  const canAct = can(role, "escalate");
 
   return (
-    <div className="grid h-full min-h-0 lg:grid-cols-[13.5rem_23rem_minmax(0,1fr)]">
-      {/* Views */}
-      <nav aria-label="Views" className={`border-b border-slate-200 bg-white lg:border-b-0 lg:border-r ${key ? "hidden lg:block" : ""}`}>
-        <div className="flex gap-1 overflow-x-auto p-2 lg:flex-col lg:p-3">
-          {VIEWS.map((v) => {
-            const n = r.threads.filter((x) => v.test(x, decisionsOf(r, x))).length;
-            const on = v.id === viewId;
-            return (
-              <button
-                key={v.id}
-                onClick={() => setViewId(v.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm ${on ? "bg-indigo-50 font-semibold text-indigo-700" : "text-slate-700 hover:bg-slate-100"}`}
-              >
-                <Icon name={v.icon} className="h-4 w-4" />
-                <span>{v.label}</span>
-                <span className={`ml-auto rounded-full px-1.5 text-xs tabular-nums ${on ? "bg-indigo-100" : "bg-slate-100 text-slate-600"}`}>{n}</span>
-              </button>
-            );
-          })}
+    <div className={cn("grid h-full min-h-0", selected ? "xl:grid-cols-[15rem_24rem_minmax(0,1fr)]" : "lg:grid-cols-[15rem_minmax(0,1fr)]")}>
+      <div className="hidden min-h-0 lg:block">
+        <InboxSidebar run={run} view={view} onView={setView} label={label} onLabel={setLabel} />
+      </div>
+      <div className={cn("min-h-0 border-r border-line", selected && "hidden xl:block")}>
+        <ThreadTable
+          r={r}
+          threads={threads}
+          title={title}
+          selected={selected}
+          compact={!!selected}
+          actions={{
+            open,
+            reply: (k) => {
+              open(k);
+              setReplySignal((n) => n + 1);
+            },
+            escalate: setEscalating,
+            watch: (k) => act(k, "watch"),
+            archive: (keys) => keys.filter((k) => k !== "QUARANTINE").forEach((k) => act(k, "archive")),
+            previewLabels: (keys) => r.threads.filter((t) => keys.includes(t.thread_key)).forEach((t) => t.email_ids.forEach((id) => preview(id, "label"))),
+            canAct,
+          }}
+        />
+      </div>
+      {selected && (
+        <div className="min-h-0">
+          <ThreadDetail r={r} threadKey={selected} onClose={() => navigate("/inbox")} onEscalate={setEscalating} replySignal={replySignal} />
         </div>
-        <div className="hidden px-4 pb-4 pt-2 text-[11px] leading-relaxed text-slate-500 lg:block">
-          <div className="font-semibold uppercase tracking-wide text-slate-400">Shortcuts</div>
-          <kbd className="font-mono">j</kbd>/<kbd className="font-mono">k</kbd> next/previous · <kbd className="font-mono">/</kbd> search · <kbd className="font-mono">r</kbd> reply
-        </div>
-      </nav>
-
-      {/* Thread list */}
-      <section className={`min-h-0 flex-col border-slate-200 bg-white lg:flex lg:border-r ${key ? "hidden" : "flex"}`}>
-        <div className="border-b border-slate-100 p-3">
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 focus-within:border-indigo-300 focus-within:bg-white">
-            <Icon name="search" className="h-4 w-4 text-slate-400" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search threads, emails, owners"
-              aria-label="Search threads"
-              className="w-full bg-transparent text-sm outline-none"
-            />
-          </div>
-          <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-            <span>
-              {view.label} · {threads.length}
-            </span>
-            <span>most urgent first</span>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <InboxList r={r} threads={threads} selected={selectedKey} onSelect={open} />
-        </div>
-      </section>
-
-      {/* Reading pane */}
-      <section ref={paneRef} className={`min-h-0 overflow-y-auto bg-slate-50 ${key ? "block" : "hidden lg:block"}`}>
-        {!t ? (
-          <div className="p-8 text-center text-sm text-slate-500">Select a thread.</div>
-        ) : (
-          <div className="mx-auto max-w-3xl space-y-4 p-4 lg:p-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <button onClick={() => navigate("/inbox")} className="rounded-md p-1 text-slate-500 hover:bg-slate-200 lg:hidden" aria-label="Back to the list">
-                <Icon name="back" className="h-5 w-5" />
-              </button>
-              <h1 className="text-xl font-semibold tracking-tight">{t.title}</h1>
-              <span className="font-mono text-xs text-slate-500">{t.thread_key}</span>
-              <StatusChip status={t.status} />
-              <span className="text-xs text-slate-500">{t.email_ids.length} email(s)</span>
-            </div>
-            {t.thread_key === "QUARANTINE" && <QuarantineBanner quarantined={ds} policy={r.policy} />}
-            {actionError && (
-              <div role="alert" className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-                {actionError}
-              </div>
-            )}
-            <NextActionBar
-              t={t}
-              onReply={() => {
-                composerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                composerRef.current?.focus();
-              }}
-            />
-            <SummaryCard t={t} ds={ds} onShow={show} aiEnabled={aiEnabled} />
-            <AssistantPanel t={t} ds={ds} onCite={(id) => show({ email_id: id, quote: "" })} />
-            <div className="space-y-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Emails in time order</h2>
-              {ds.map((d) => (
-                <EmailCard key={d.email_id} d={d} edited={!!run.decisionEdits[d.email_id]} activeQuote={active?.email_id === d.email_id ? active.quote : null} />
-              ))}
-            </div>
-            <Composer ref={composerRef} t={t} draft={draft} edit={run.edits[t.thread_key]} />
-          </div>
-        )}
-      </section>
+      )}
+      <EscalateDialog
+        r={r}
+        keys={escalating}
+        onClose={() => setEscalating([])}
+        onConfirm={(to, note) => {
+          escalating.forEach((k) => act(k, "escalate", { to, note: note || undefined }));
+          setEscalating([]);
+        }}
+      />
     </div>
   );
 }

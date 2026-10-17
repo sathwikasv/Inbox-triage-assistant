@@ -1,6 +1,7 @@
 import { create } from "zustand";
+import { toast as sonner } from "sonner";
 import { FixtureError, type LintViolation } from "@c16/core";
-import { apiHealth, createRepository, DEFAULT_REPO, LintRejected, type DecisionPatch, type RepoKind, type Repository, type SavedRun, type ThreadAction } from "../repo";
+import { apiHealth, createRepository, DEFAULT_REPO, LintRejected, type DecisionPatch, type RepoKind, type Repository, type Role, type SavedRun, type ThreadAction } from "../repo";
 
 export interface ImportError {
   title: string;
@@ -9,11 +10,26 @@ export interface ImportError {
 
 export type ApiStatus = "not used" | "waking" | "ready" | "offline";
 
-export interface Toast {
-  id: number;
-  text: string;
-  tone: "ok" | "info" | "warn";
-}
+export type Theme = "light" | "dark";
+
+// Per-viewer preferences; storage may be blocked (private mode), so every access is guarded.
+const pref = {
+  get<T extends string>(k: string, fallback: T): T {
+    try {
+      return (window.localStorage.getItem(k) as T) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  },
+  set(k: string, v: string) {
+    try {
+      window.localStorage.setItem(k, v);
+    } catch {
+      /* preference not kept */
+    }
+  },
+};
+const applyTheme = (t: Theme) => document.documentElement.classList.toggle("dark", t === "dark");
 
 interface TriageState {
   repo: Repository;
@@ -26,8 +42,12 @@ interface TriageState {
   importError: ImportError | null;
   actionError: string | null;
   useModelDrafts: boolean; // show pre-generated model variants instead of the template (both are linted)
-  toasts: Toast[];
+  role: Role;
+  theme: Theme;
   setUseModelDrafts(v: boolean): void;
+  setRole(r: Role): void;
+  setTheme(t: Theme): void;
+  approveDraft(threadKey: string): Promise<void>;
   boot(): Promise<void>;
   switchRepo(kind: RepoKind): Promise<void>;
   importFixture(input: unknown, source: string): Promise<boolean>;
@@ -36,7 +56,7 @@ interface TriageState {
   preview(emailId: string, action: "label" | "archive"): Promise<void>;
   act(threadKey: string, action: ThreadAction, opts?: { to?: string; note?: string }): Promise<void>;
   markReviewed(): Promise<void>;
-  toast(text: string, tone?: Toast["tone"]): void;
+  toast(text: string, tone?: "ok" | "info" | "warn"): void;
   clearErrors(): void;
 }
 
@@ -46,8 +66,6 @@ function toImportError(e: unknown): ImportError {
   if (err.issues) return { title: "The file was not imported", issues: err.issues };
   return { title: "The file was not imported", issues: [{ path: "(file)", message: err.message ?? String(e) }] };
 }
-
-let toastId = 0;
 
 export const useTriage = create<TriageState>((set, get) => {
   let booting = false;
@@ -76,13 +94,34 @@ export const useTriage = create<TriageState>((set, get) => {
     importError: null,
     actionError: null,
     useModelDrafts: false,
-    toasts: [],
+    role: pref.get<Role>("c16.role", "reviewer"),
+    theme: (() => {
+      const t = pref.get<Theme>("c16.theme", "light");
+      applyTheme(t);
+      return t;
+    })(),
     setUseModelDrafts: (v) => set({ useModelDrafts: v }),
+    setRole(role) {
+      pref.set("c16.role", role);
+      set({ role });
+      sonner(`Now acting as ${role[0].toUpperCase()}${role.slice(1)}`);
+    },
+    setTheme(theme) {
+      pref.set("c16.theme", theme);
+      applyTheme(theme);
+      set({ theme });
+    },
 
     toast(text, tone = "ok") {
-      const id = ++toastId;
-      set({ toasts: [...get().toasts, { id, text, tone }] });
-      setTimeout(() => set({ toasts: get().toasts.filter((t) => t.id !== id) }), 4500);
+      if (tone === "warn") sonner.warning(text);
+      else if (tone === "info") sonner.info(text);
+      else sonner.success(text);
+    },
+
+    async approveDraft(threadKey) {
+      await act((r) => get().repo.approveDraft(r.runId, threadKey, get().role))
+        .then(() => get().toast("Draft approved. It stays a draft; nothing is sent."))
+        .catch((e) => get().toast((e as Error).message, "warn"));
     },
 
     async boot() {

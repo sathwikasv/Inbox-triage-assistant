@@ -77,3 +77,13 @@ export function answer(q: QuestionId, t: ThreadFacts, ds: Decision[]): Answer {
 
   return { lines, cites: [...cites] };
 }
+
+/** Map a free-text question to one of the fact-backed answers (Copilot ask box). */
+export function routeQuestion(text: string): QuestionId {
+  const q = text.toLowerCase();
+  if (/risk|safe|inject|suspicious|attach|verify|trust/.test(q)) return "risks";
+  if (/why|urgent|urgency|priority|important/.test(q)) return "urgency";
+  if (/chang|history|timeline|correct|happen/.test(q)) return "changed";
+  if (/need|do i|should i|next|action|todo|to do|escalat|owner|who/.test(q)) return "needed";
+  return "summary";
+}
