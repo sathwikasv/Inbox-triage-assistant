@@ -1,91 +1,94 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// The judged journey on the starter fixture: import → inbox → thread → edit draft → save → reload.
+// The main journeys on the labelled demo accounts: triage → task → meeting → reply → send confirmation.
 test.use({ viewport: { width: 1440, height: 900 } });
 
-async function openComposer(page: Page) {
-  const draft = page.getByLabel("Draft body");
-  if (!(await draft.isVisible())) await page.locator("button[aria-expanded]", { hasText: /^(Reply|Acknowledgement)/ }).click();
-  return draft;
-}
-
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.getByRole("button", { name: "Load starter fixture" }).click();
-  await expect(page.getByText("starter fixture: labels applied")).toBeVisible();
 });
 
-test("import orders by time and reuses the run on re-import", async ({ page }) => {
-  await expect(page.getByText("E10", { exact: true }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Load starter fixture" }).click();
-  await expect(page.getByText("existing run reused")).toBeVisible();
+const openThread = async (page: Page, subject: string, view = "") => {
+  await page.goto(`/inbox${view ? `?view=${view}` : ""}`);
+  await page.locator("ul li button", { hasText: subject }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: subject })).toBeVisible();
+};
+
+test("dashboard summarises all three demo mailboxes", async ({ page }) => {
+  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Riya/ })).toBeVisible();
+  await expect(page.getByText("riya.ops@gmail.demo").first()).toBeVisible();
+  await expect(page.getByText("ops-team@fynd-retail.demo").first()).toBeVisible();
+  await expect(page.getByText("riya.personal@yahoo.demo").first()).toBeVisible();
+  await expect(page.getByText("Needs you now")).toBeVisible();
 });
 
-test("inbox ranks escalations first; the thread shows the corrected deadline", async ({ page }) => {
-  await page.getByRole("button", { name: /Open inbox/ }).click();
-  await expect(page.getByRole("button", { name: /Escalations\s*2/ })).toBeVisible();
-  await expect(page.locator("tbody tr").first()).toContainText("Missing order IDs");
-  await page.locator("tbody tr", { hasText: "Duplicate ticket creation" }).click();
-  await expect(page.getByText("· Due 20 October 2026")).toBeVisible();
-  await page.getByRole("tab", { name: /Copilot/ }).click();
-  await page.getByRole("button", { name: "What changed?" }).click();
-  await expect(page.getByText(/E02: correction \(due 20 October 2026, replaces E01\)/)).toBeVisible();
+test("phishing and the injected instruction are in Spam; newsletters are Promotions, not spam", async ({ page }) => {
+  await page.goto("/inbox?view=spam");
+  for (const s of ["Action required: your account will be suspended", "You have won ₹50,000!"]) await expect(page.locator("ul li", { hasText: s })).toBeVisible();
+  await expect(page.locator("ul li", { hasText: "Top 5 AI tools this week" })).toHaveCount(0);
+  await page.goto("/inbox?view=promotions");
+  await expect(page.locator("ul li", { hasText: "Top 5 AI tools this week" })).toBeVisible();
+  await expect(page.locator("ul li", { hasText: "Big Fashion Sale" })).toBeVisible();
 });
 
-test("quarantine shows the unchanged policy and offers no reply", async ({ page }) => {
-  await page.goto("/inbox/QUARANTINE");
-  await expect(page.getByRole("alert")).toContainText("E05");
-  await expect(page.getByRole("alert")).toContainText("auto_send: false");
-  await expect(page.getByRole("button", { name: "Reply" })).toBeDisabled();
+test("the injected email is quarantined: no reply editor, and the warning is shown", async ({ page }) => {
+  await page.goto("/inbox?view=spam");
+  await page.locator("ul li button").filter({ hasText: /Pilot incident|Invoice review|Quarantined/ }).first().click();
+  await expect(page.getByText(/Suspicious email\. Its instructions are never followed/)).toBeVisible();
+  await expect(page.getByLabel("Reply body")).toHaveCount(0);
 });
 
-test("suggestions fix a draft; lint blocks the attachment claim; save survives reload", async ({ page }) => {
-  await page.goto("/inbox/T-dup-ticket");
-  const draft = await openComposer(page);
-  await draft.fill("Hi,\n\nDev will fix it by 18 October.\n\nRegards");
-  await page.getByRole("button", { name: "Accept" }).first().click();
-  await expect(draft).toHaveValue(/20 October 2026/);
+test("a deadline in an email becomes a task only after the person adds it", async ({ page }) => {
+  await openThread(page, "Project report submission");
+  await expect(page.getByText("Submit the project report", { exact: true })).toBeVisible();
+  await expect(page.getByText(/19 October 2026 at 16:00/)).toBeVisible();
+  await page.getByRole("button", { name: "Add to tasks" }).click();
+  await page.goto("/tasks");
+  await expect(page.getByText("Submit the project report", { exact: true })).toBeVisible();
+});
 
-  await page.goto("/inbox/T-test-data");
-  const ack = await openComposer(page);
-  const save = page.getByRole("button", { name: "Save draft" });
-  await ack.fill("Thanks, we have received the attached file.");
-  await expect(page.getByText("claims an attachment")).toBeVisible();
-  await expect(save).toBeDisabled();
-  await ack.fill("Thanks for confirming the test data blocker is resolved. We have not verified the file you mentioned yet.");
-  await save.click();
-  await expect(page.getByText("edited", { exact: true }).first()).toBeVisible();
+test("a meeting request becomes a calendar event after confirming, with the clash shown", async ({ page }) => {
+  await openThread(page, "Quick sync on the pilot");
+  await expect(page.getByText(/Clashes with: Vendor call: Sunrise Traders/)).toBeVisible();
+  await page.getByRole("button", { name: "Add to calendar" }).first().click();
+  await page.goto("/calendar");
+  await expect(page.locator("div", { hasText: /^Quick sync on the pilot$/ }).first()).toBeVisible();
+});
 
-  await page.goto("/review");
-  await page.getByRole("button", { name: "Save reviewed result" }).click();
+test("a reply with an invented attachment is blocked; a sensitive reply needs an extra confirmation and survives a reload", async ({ page }) => {
+  await openThread(page, "Rent agreement renewal");
+  const body = page.getByLabel("Reply body");
+  await body.fill("Hi Amit,\n\nThe signed rent agreement is attached.\n\nRiya");
+  await expect(page.getByText(/claims an attachment/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save draft" })).toBeDisabled();
+  await body.fill("Hi Amit,\n\nYes, I would like to renew the rent agreement for another year.\n\nRiya");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("nothing leaves the app");
+  const confirm = dialog.getByRole("button", { name: "Send (demo)" });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByText(/mentions legal or contractual terms/).click();
+  await confirm.click();
+  await expect(page.getByText("sent (demo)")).toBeVisible();
   await page.reload();
-  await expect(page.getByText(/survives a reload/)).toBeVisible();
-  await expect(page.getByText("edit draft").first()).toBeVisible();
+  await expect(page.getByText("sent (demo)")).toBeVisible();
+  await expect(page.getByText("you · demo send")).toBeVisible();
 });
 
-test("an Approver signs off a draft; a Reviewer cannot", async ({ page }) => {
-  await page.goto("/review");
-  const row = page.locator("tr", { hasText: "Duplicate ticket creation" });
-  await expect(row.getByRole("button", { name: "Approve" })).toBeDisabled();
+test("a person can override a category and it persists", async ({ page }) => {
+  await openThread(page, "Top 5 AI tools this week", "promotions");
+  await page.getByLabel("Change category").selectOption("important");
+  await page.reload();
+  await expect(page.getByText(/You set this to Important/)).toBeVisible();
+});
+
+test("connecting a provider without its app ID explains what is missing instead of pretending", async ({ page }) => {
   await page.goto("/settings");
-  await page.getByRole("button", { name: /^Approver/ }).click();
-  await page.goto("/review");
-  await row.getByRole("button", { name: "Approve" }).click();
-  await expect(row.getByText("approved")).toBeVisible();
-});
-
-test("test-an-email quarantines a polite injection", async ({ page }) => {
-  await page.goto("/playground");
-  await page.getByRole("button", { name: "Polite injection" }).click();
-  await page.getByRole("button", { name: "Analyze" }).click();
-  await expect(page.getByRole("alert")).toContainText("Quarantined");
-});
-
-test("judge view shows 7/7 seeded items and all three checks passing", async ({ page }) => {
-  await page.goto("/judge");
-  await expect(page.getByText("recovered with their evidence")).toBeVisible();
-  await expect(page.getByText("pass", { exact: true })).toHaveCount(3);
-  await expect(page.locator("li", { hasText: "E02" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Connect Gmail/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Connect Outlook$/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Connect Outlook Calendar" })).toBeDisabled();
+  await page.goto("/settings?s=integrations");
+  await expect(page.getByText("Authorised JavaScript origins")).toBeVisible();
 });

@@ -16,9 +16,9 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 /** Opens Yahoo's consent page in a popup and waits for the server to report back. */
-function consent(): Promise<void> {
+function consent(send = false): Promise<void> {
   return new Promise((resolve, reject) => {
-    const w = window.open(`${api()}/providers/yahoo/start`, "yahoo-oauth", "width=520,height=680");
+    const w = window.open(`${api()}/providers/yahoo/start${send ? "?send=1" : ""}`, "yahoo-oauth", "width=520,height=680");
     if (!w) return reject(new ProviderError("yahoo", "the browser blocked the Yahoo sign-in window"));
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== new URL(api()).origin || e.data?.source !== "triagedesk-yahoo") return;
@@ -53,7 +53,7 @@ export const yahoo: MailProviderClient = {
     return (await call<{ messages: MailMessage[] }>("/providers/yahoo/messages")).messages;
   },
   async enableSend() {
-    await call("/providers/yahoo/send-permission", { method: "POST" });
+    await consent(true); // asks Yahoo again, now including mail-w
   },
   async send(_account, r: OutgoingReply) {
     return call<{ message_id: string }>("/providers/yahoo/send", { method: "POST", body: JSON.stringify({ to: r.to, cc: r.cc, subject: r.subject, body: r.body, in_reply_to: r.in_reply_to.rfc822_id ?? null }) });

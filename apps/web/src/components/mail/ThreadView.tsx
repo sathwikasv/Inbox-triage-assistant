@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Archive, ArrowLeft, BadgeCheck, CalendarPlus, Check, ListTodo, Loader2, Lock, MailOpen, Paperclip, Send, ShieldAlert, Sparkles, Star, Trash2, Users } from "lucide-react";
 import {
   CATEGORY_LABEL,
@@ -28,6 +28,7 @@ import {
 } from "@c16/core";
 import { useApp } from "../../store/app";
 import { useMailbox } from "../../store/mailbox";
+import { aiReply, aiStatus } from "../../lib/ai";
 import { Avatar, Badge, Button, Dialog, Segmented, Tip, cn } from "../../ui";
 import { CATS, CAT_TONE, CategoryBadge, PRIORITY_TONE, ProviderMark, accountNote, addrList, addrText, nameOf, shortTime } from "./common";
 
@@ -371,18 +372,39 @@ function ReplyEditor({ view, thread, account }: { view: MailboxView; thread: Mai
   const [body, setBody] = useState(saved?.body ?? suggested);
   const [confirming, setConfirming] = useState(false);
   const [ticked, setTicked] = useState<string[]>([]);
+  const [ai, setAi] = useState<{ enabled: boolean; model: string | null }>({ enabled: false, model: null });
+  const [aiText, setAiText] = useState<string | null>(null);
+  const [thinking, setThinking] = useState(false);
+  const toast = useApp((s) => s.toast);
+  useEffect(() => {
+    aiStatus().then(setAi);
+  }, []);
   if (!headers) return null;
 
   const lint = lintReply(view, thread.key, body);
   const dirty = !saved || saved.body !== body || saved.subject !== subject || addrText(saved.to) !== to || addrText(saved.cc) !== cc;
   const check = sendCheck(view, state, thread.key, role);
   const sent = saved?.sent_at;
-  const fields = () => ({ thread_key: thread.key, account_id: account.id, in_reply_to: headers.in_reply_to, to: addrList(to), cc: addrList(cc), subject, body, tone, source: (body === suggested ? "template" : "edited") as "template" | "edited" });
-  const regenerate = () => {
+  const fields = () => ({ thread_key: thread.key, account_id: account.id, in_reply_to: headers.in_reply_to, to: addrList(to), cc: addrList(cc), subject, body, tone, source: (body === aiText ? "ai" : body === suggested ? "template" : "edited") as "ai" | "template" | "edited" });
+  const cycleTone = () => {
     const order = TONES.map((t) => t.id);
     const next = order[(order.indexOf(tone) + 1) % order.length];
     setTone(next);
     setBody(thread.draft?.tones[next] ?? suggested);
+  };
+  const regenerate = async () => {
+    if (!ai.enabled) return cycleTone();
+    setThinking(true);
+    const msgs = thread.message_ids.map((id) => view.messages.find((m) => m.id === id)!).filter((m) => !view.insights[m.id]?.suspicious);
+    const r = await aiReply({ subject: thread.subject, tone, user_name: prefs.name, messages: msgs.slice(-10).map((m) => ({ from: nameOf(m.from), direction: m.direction, received_at: m.received_at, body: m.body.slice(0, 6000) })) });
+    setThinking(false);
+    if (r.ok) {
+      setBody(r.body);
+      setAiText(r.body);
+    } else {
+      toast(`AI draft unavailable: ${r.error}. Showing a template instead.`, "warn");
+      cycleTone();
+    }
   };
 
   return (
@@ -390,7 +412,7 @@ function ReplyEditor({ view, thread, account }: { view: MailboxView; thread: Mai
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
         <Send className="h-4 w-4 text-brand" />
         <span className="text-sm font-semibold">Reply</span>
-        <Badge>{body === suggested ? "suggested draft" : "edited"}</Badge>
+        <Badge tone={body === aiText ? "violet" : "neutral"}>{body === aiText ? `AI draft · ${ai.model}` : body === suggested ? "suggested draft" : "edited"}</Badge>
         {saved?.approved_at && !dirty && (
           <Badge tone="green">
             <BadgeCheck className="h-3 w-3" /> approved
@@ -433,8 +455,9 @@ function ReplyEditor({ view, thread, account }: { view: MailboxView; thread: Mai
         )}
         {!sent && (
           <div className="flex flex-wrap gap-3 text-xs">
-            <button onClick={regenerate} className="font-medium text-brand hover:underline">
-              Regenerate in another tone
+            <button onClick={regenerate} disabled={thinking} className="inline-flex items-center gap-1 font-medium text-brand hover:underline disabled:opacity-50">
+              {thinking && <Loader2 className="h-3 w-3 animate-spin" />}
+              {ai.enabled ? `Regenerate with AI (${TONES.find((t) => t.id === tone)?.label.toLowerCase()})` : "Regenerate in another tone"}
             </button>
             {proposal && (
               <button onClick={() => setBody(`Hi,\n\nThanks, ${formatDate(proposal.when!.date)} at ${proposal.when!.time} works for me. See you then.\n\nRegards,\n${prefs.name}`)} className="font-medium text-brand hover:underline">
