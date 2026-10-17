@@ -41,7 +41,7 @@ runsRouter.get(
   "/latest",
   wrap(async (_req, res) => {
     const run = await TriageRun.findOne().sort({ updatedAt: -1 }).select("_id").lean();
-    if (!run) return res.status(404).json({ error: "no runs yet" });
+    if (!run) return res.json(null); // no runs yet is not an error
     return res.json(await loadRun(String(run._id)));
   }),
 );
