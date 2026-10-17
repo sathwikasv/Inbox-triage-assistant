@@ -33,6 +33,10 @@ export interface Prefs {
   name: string;
   timezone: string;
   showDemo: boolean; // keep the labelled demo accounts in the inbox
+  density: "comfortable" | "compact";
+  pane: "right" | "off"; // reading pane beside the list, or full-width conversations
+  rail: boolean; // sidebar collapsed to icons
+  highlight: boolean; // mark the sentences the assistant used
 }
 
 interface AppState {
@@ -48,11 +52,12 @@ interface AppState {
 export const useApp = create<AppState>((set, get) => ({
   role: read<Role>("c16.role", "reviewer"),
   theme: (() => {
-    const t = read<Theme>("c16.theme", "light");
+    const system: Theme = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    const t = read<Theme>("c16.theme", system);
     applyTheme(t);
     return t;
   })(),
-  prefs: { name: "Riya Sharma", timezone: browserZone, showDemo: true, ...read<Partial<Prefs>>("c16.prefs", {}) },
+  prefs: { name: "Riya Sharma", timezone: browserZone, showDemo: true, density: "comfortable", pane: "right", rail: false, highlight: true, ...read<Partial<Prefs>>("c16.prefs", {}) },
   setRole(role) {
     write("c16.role", role);
     set({ role });
