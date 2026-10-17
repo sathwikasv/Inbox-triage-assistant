@@ -11,6 +11,7 @@ const TriageRunSchema = new Schema(
       autoSend: { type: Boolean, default: false, immutable: true },
     },
     labelsApplied: { type: Boolean, default: false },
+    ai: { type: Schema.Types.Mixed, default: { status: "disabled" } }, // { status, model, error?, ms } of the optional Gemini pass
     result: { type: Schema.Types.Mixed, required: true }, // TriageResult snapshot from packages/core
     reviewed: { type: Boolean, default: false },
     savedAt: { type: Date, default: null },
