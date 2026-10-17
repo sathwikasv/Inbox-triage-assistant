@@ -1,6 +1,7 @@
 export * from "./types.js";
 export { POLICY, policyIntact } from "./policy.js";
 export { parseFixture, FixtureError } from "./schema.js";
+export { fixtureFromCsv, fixtureToCsv, loadInput, looksLikeCsv, CSV_COLUMNS } from "./csv.js";
 export { sortEmails, splitQuoted } from "./normalize.js";
 export { classifyPurpose, classifyUrgency, isFallback, PURPOSE_RULES } from "./classify.js";
 export { AI_OVERRIDE_CONFIDENCE, AI_LOW_CONFIDENCE } from "./analyze.js";

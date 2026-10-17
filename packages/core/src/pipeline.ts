@@ -1,4 +1,5 @@
 import { parseFixture } from "./schema.js";
+import { loadInput } from "./csv.js";
 import { sortEmails, dedupeById } from "./normalize.js";
 import { POLICY, policyIntact } from "./policy.js";
 import { analyzeEmail } from "./analyze.js";
@@ -39,7 +40,8 @@ export function fixtureHash(input: unknown): string {
  * Pass labels only for the input they were written for (the starter fixture); otherwise Check 1 is reported as not applicable.
  */
 export function runTriage(input: unknown, opts: { labels?: Labels; ai?: Record<string, AiPrediction> } = {}): TriageResult {
-  const fx = parseFixture(input);
+  const raw = loadInput(input); // JSON text, CSV text or an object
+  const fx = parseFixture(raw);
   const { emails, warnings } = dedupeById(fx.records.emails as RawEmail[]);
   const ordered = sortEmails(emails);
   for (const e of ordered) if (e.received_at === null) warnings.push(`${e.email_id} has received_at: null (unknown); placed last and flagged for review.`);
@@ -52,7 +54,7 @@ export function runTriage(input: unknown, opts: { labels?: Labels; ai?: Record<s
   if (!policyIntact(POLICY) || !Object.isFrozen(POLICY)) throw new Error("policy changed during triage; refusing to return a result");
   const result = {
     case_id: fx.case_id,
-    fixture_hash: fixtureHash(input),
+    fixture_hash: fixtureHash(raw),
     policy: POLICY,
     ordered_email_ids: ordered.map((e) => e.email_id),
     as_of: asOf,
