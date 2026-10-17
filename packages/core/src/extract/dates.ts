@@ -6,6 +6,9 @@ export interface DateMention {
   text: string; // the date words, e.g. "20 October" or "tomorrow"
   sentence: string; // exact sentence from the body, used as evidence
   cue: "due" | "relative" | "mention";
+  time: string | null; // "16:00" when an hour is stated; null for a date with no time
+  end_time: string | null; // "16:30" for ranges such as "3-4 PM"
+  tz_offset: number | null; // minutes east of UTC, only when the text states a zone ("3 PM IST", "10am PST")
 }
 
 const DUE_CUE = /\b(due|deadline|by|before|no later than)\b/i;
@@ -36,7 +39,9 @@ export function extractDates(text: string, receivedAt: string | null): DateMenti
       ? `${r.start.get("year")}-${pad(r.start.get("month")!)}-${pad(r.start.get("day")!)}`
       : null;
     const cue = DUE_CUE.test(sentence) ? "due" : relative ? "relative" : "mention";
-    out.push({ date, text: r.text, sentence, cue });
+    const hm = (c: chrono.ParsedComponents | null | undefined) => (c && c.isCertain("hour") ? `${pad(c.get("hour")!)}:${pad(c.get("minute") ?? 0)}` : null);
+    const tz = r.start.isCertain("timezoneOffset") ? (r.start.get("timezoneOffset") ?? null) : null;
+    out.push({ date, text: r.text, sentence, cue, time: hm(r.start), end_time: hm(r.end), tz_offset: tz });
   }
   return out;
 }

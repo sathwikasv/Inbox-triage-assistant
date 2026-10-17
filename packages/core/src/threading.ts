@@ -35,6 +35,11 @@ function contentWords(text: string): Set<string> {
   return out;
 }
 
+/** "RE: Fwd: Invoice 22" → "Invoice 22". */
+export function cleanSubject(s: string): string {
+  return s.replace(/^s*((re|fw|fwd|aw)s*:s*)+/i, "").trim() || "(no subject)";
+}
+
 export interface ThreadAssignment {
   thread_key: string;
   title: string;
@@ -85,6 +90,13 @@ export function assignThreads(items: AnalyzedEmail[]): Map<string, ThreadAssignm
     if (twin) {
       const t = out.get(twin)!;
       join(a, t.thread_key, t.title, `identical text to ${twin}`, false, twin);
+      continue;
+    }
+    if (a.email.thread_id) {
+      // Real mailboxes say which conversation a message belongs to; trust that over content heuristics.
+      seenText.set(canon, id);
+      const key = `T-${a.email.thread_id}`;
+      join(a, key, threads.get(key)?.title ?? cleanSubject(a.email.subject), "same conversation id from the mail provider");
       continue;
     }
     seenText.set(canon, id);

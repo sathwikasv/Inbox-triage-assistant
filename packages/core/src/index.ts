@@ -12,3 +12,4 @@ export { formatDate } from "./extract/dates.js";
 export { buildDrafts, lintDraft, allowedDates, templateDraft, draftInTone, TONES, LINT_RULES, suggestFixes, needsApproval, correctionBurden, type DraftSuggestion } from "./drafts/index.js";
 export { computeMetrics } from "./metrics.js";
 export { runTriage, fixtureHash } from "./pipeline.js";
+export * from "./mail/index.js";

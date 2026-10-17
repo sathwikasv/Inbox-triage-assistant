@@ -22,6 +22,7 @@ export interface RawEmail {
   received_at: string | null; // ISO 8601 with offset; null = unknown (kept, flagged for review)
   expected_action?: string;
   synthetic?: boolean;
+  thread_id?: string; // provider thread/conversation id; when present it decides the thread
 }
 
 export interface Policy {

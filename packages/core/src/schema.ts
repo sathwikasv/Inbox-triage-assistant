@@ -8,6 +8,7 @@ export const EmailSchema = z.object({
   received_at: z.string().datetime({ offset: true }).nullable(),
   expected_action: z.string().optional(),
   synthetic: z.boolean().optional(),
+  thread_id: z.string().min(1).optional(),
 });
 
 export const FixtureSchema = z
