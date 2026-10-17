@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+.git
+**/.env
+ml/.venv
+ml/outputs/*.joblib
+/C16
+/Templates
+/case-bank.json
+/Judge_and_Mentor_Notes.md

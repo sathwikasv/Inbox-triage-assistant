@@ -11,3 +11,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
       - run: pnpm -r test
+  api-image:
+    # Same image Render builds from render.yaml; catches Dockerfile breakage before deploy.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f apps/api/Dockerfile -t c16-api .
+      - run: docker run --rm --entrypoint node c16-api -e "import('./dist/app.js').then(m => { m.createApp(); console.log('api image ok') })"

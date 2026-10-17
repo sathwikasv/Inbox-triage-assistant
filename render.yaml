@@ -1,0 +1,17 @@
+# Render blueprint for the API (apps/api). Free web service built from apps/api/Dockerfile.
+# Secrets (MONGODB_URI, CORS_ORIGIN) are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: c16-inbox-triage-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    branch: main
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false

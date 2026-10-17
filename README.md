@@ -17,6 +17,8 @@ pnpm test
 - Frontend (Amplify Hosting): TODO
 - API (Render): TODO
 
+Deployment steps (Atlas → Render → Amplify) and a local run without Atlas: [docs/deploy.md](docs/deploy.md).
+
 ## Known limits
 See docs/known_limits.md.
 

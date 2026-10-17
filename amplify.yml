@@ -1,0 +1,24 @@
+# AWS Amplify Hosting build spec (static frontend only; no Amplify backend).
+# Monorepo: Amplify runs these from appRoot (apps/web), so each step first goes to the repo root.
+version: 1
+applications:
+  - appRoot: apps/web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - nvm install 20 && nvm use 20
+            - cd ../.. && corepack enable && corepack prepare pnpm@9.12.0 --activate
+            - cd ../.. && MONGOMS_DISABLE_POSTINSTALL=1 pnpm install --frozen-lockfile
+            - cd ../.. && pnpm --filter @c16/core build
+        build:
+          commands:
+            # VITE_API_URL and VITE_REPO come from the Amplify console environment variables.
+            - cd ../.. && pnpm --filter web build
+      artifacts:
+        baseDirectory: dist
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - ../../node_modules/**/*
