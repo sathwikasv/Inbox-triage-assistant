@@ -4,6 +4,7 @@ import { POLICY, policyIntact } from "./policy.js";
 import { analyzeEmail } from "./analyze.js";
 import { assignThreads } from "./threading.js";
 import { reconcile } from "./reconcile.js";
+import { buildDrafts } from "./drafts/index.js";
 import type { Metrics, RawEmail, TriageResult } from "./types.js";
 
 /** JSON with object keys sorted, so key order in the file does not change the hash. */
@@ -61,7 +62,7 @@ export function runTriage(input: unknown): TriageResult {
     ordered_email_ids: ordered.map((e) => e.email_id),
     decisions,
     threads,
-    drafts: [],
+    drafts: buildDrafts(threads, decisions),
     metrics: EMPTY_METRICS,
     warnings,
   };
