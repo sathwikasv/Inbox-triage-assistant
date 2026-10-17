@@ -3,8 +3,8 @@ import type { Decision, Draft, Purpose, ThreadFacts, Urgency } from "../types.js
 // The unified mailbox: several accounts (Gmail, Outlook, Yahoo), each either a clearly labelled
 // demo account or a connected one. Email content is untrusted input everywhere.
 
-export type Provider = "gmail" | "outlook" | "yahoo";
-export type AccountMode = "demo" | "connected";
+export type Provider = "gmail" | "outlook" | "yahoo" | "import";
+export type AccountMode = "demo" | "connected" | "import";
 
 export interface MailAccount {
   id: string;
@@ -33,6 +33,7 @@ export interface MailMessage {
   id: string;
   account_id: string;
   provider_message_id?: string;
+  rfc822_id?: string; // the Message-ID header, used to thread replies
   thread_id?: string; // provider conversation id; absent for imported files, which are threaded by content
   in_reply_to?: string; // message id this one answers (outbound replies)
   from: Address;

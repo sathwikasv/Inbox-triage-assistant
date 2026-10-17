@@ -27,8 +27,11 @@ export function extractStatus(text: string): StatusSignals {
 }
 
 /** The work item named by a request, blocker, question or commitment, in plain words. */
+const GREETING = /^(hi|hello|hey|dear|greetings|good (morning|afternoon|evening)|team|all)\b[^.!?]{0,40}[,!:]?$/i;
+
 export function extractTask(text: string, purpose: string): string | null {
-  const first = sentences(text)[0]?.text ?? text;
+  // Skip a salutation line ("Hi Riya,"), so the task is the first sentence that says something.
+  const first = sentences(text).find((s) => !GREETING.test(s.text))?.text ?? text;
   const clean = (s: string) => s.replace(/[.;!?]+$/, "").trim();
   if (purpose === "request") {
     const m = /\b(?:please|kindly|we need to|you need to|can you|could you)\s+(.+)/i.exec(first);
