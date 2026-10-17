@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 
-export const AUDIT_TYPES = ["import", "reimport", "edit_draft", "edit_decision", "preview_label", "preview_archive", "save", "quarantine"] as const;
+export const AUDIT_TYPES = ["import", "reimport", "edit_draft", "edit_decision", "preview_label", "preview_archive", "save", "quarantine", "escalate", "watch", "archive"] as const;
 
 const AuditEventSchema = new Schema(
   {

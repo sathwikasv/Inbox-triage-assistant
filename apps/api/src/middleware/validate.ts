@@ -28,3 +28,12 @@ export const DecisionPatchSchema = z
 
 export const DraftPutSchema = z.object({ body: z.string().min(1).max(5000) }).strict();
 export const PreviewSchema = z.object({ email_id: z.string().min(1), action: z.enum(["label", "archive"]) }).strict();
+
+export const ActionSchema = z
+  .object({
+    thread_key: z.string().min(1),
+    action: z.enum(["escalate", "watch", "archive"]),
+    to: z.string().max(80).optional(), // escalation target, e.g. "Ops lead"
+    note: z.string().max(500).optional(),
+  })
+  .strict();

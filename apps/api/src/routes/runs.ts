@@ -4,7 +4,7 @@ import { FixtureError, QUARANTINE, computeMetrics, lintDraft, type TriageResult 
 import { TriageRun } from "../models/TriageRun.js";
 import { Decision } from "../models/Decision.js";
 import { Draft } from "../models/Draft.js";
-import { DecisionPatchSchema, DraftPutSchema, PreviewSchema, validateBody } from "../middleware/validate.js";
+import { ActionSchema, DecisionPatchSchema, DraftPutSchema, PreviewSchema, validateBody } from "../middleware/validate.js";
 import { audit, importRun, labelsFor, loadRun } from "../services/triage.js";
 
 export const runsRouter = Router();
@@ -113,6 +113,28 @@ runsRouter.post(
           ? `would archive (${d.proposed.reason}): preview only, nothing changed`
           : `archive not proposed (${d.proposed.reason}): nothing changed`;
     await audit(req.params.id, { type: req.body.action === "label" ? "preview_label" : "preview_archive", emailId: d.email_id, threadKey: d.thread_key, detail });
+    return res.json(await loadRun(req.params.id));
+  }),
+);
+
+// POST /runs/:id/actions: escalate / watch / archive a thread. Recorded in the audit trail only; nothing is sent or moved.
+runsRouter.post(
+  "/:id/actions",
+  validateBody(ActionSchema),
+  wrap(async (req, res) => {
+    const result = await snapshot(req.params.id);
+    if (!result) return res.status(404).json({ error: "run not found" });
+    const t = result.threads.find((x) => x.thread_key === req.body.thread_key);
+    if (!t) return res.status(404).json({ error: "thread not found" });
+    const { action, to, note } = req.body as { action: string; to?: string; note?: string };
+    if (action === "archive" && t.thread_key === QUARANTINE) return res.status(409).json({ error: "quarantined mail is never archived; escalate it" });
+    const detail =
+      action === "escalate"
+        ? `escalated to ${to ?? "the team lead"}${note ? `: ${note}` : ""} (recorded; no message sent)`
+        : action === "watch"
+          ? `watching${t.watch_date ? ` until ${t.watch_date}` : ""}${note ? `: ${note}` : ""}`
+          : `marked for archive (${t.email_ids.length} email(s)); preview only, mailbox unchanged`;
+    await audit(req.params.id, { type: action, threadKey: t.thread_key, detail });
     return res.json(await loadRun(req.params.id));
   }),
 );
