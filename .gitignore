@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+ml/outputs/*.joblib
+ml/.venv/
+__pycache__/
+.DS_Store
+coverage/
+
+# event pack kept local (judge notes, full case bank, MBA templates, original download)
+/Judge_and_Mentor_Notes.md
+/case-bank.json
+/Templates/
+/C16/

@@ -1,0 +1,24 @@
+#!/bin/sh
+# Blocks secrets and wrong identities before they are committed.
+staged=$(git diff --cached --name-only)
+for f in $staged; do
+  case "$f" in
+    *.env|*/.env|.env.*|*/.env.*)
+      case "$f" in *.env.example) ;; *) echo "pre-commit: refusing to commit $f (env file). See GIT_RULES.md §6." >&2; exit 1;; esac;;
+  esac
+done
+if git diff --cached | grep -E '^\+' | grep -iE 'mongodb\+srv://[^<]|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}' >/dev/null; then
+  echo "pre-commit: possible credential in staged diff. Remove it. See GIT_RULES.md §6." >&2
+  exit 1
+fi
+email=$(git config --get user.email)
+name=$(git config --get user.name)
+if [ -z "$email" ] || [ -z "$name" ]; then
+  echo "pre-commit: set git user.name and user.email first. See GIT_RULES.md §2." >&2; exit 1
+fi
+if echo "$email $name" | grep -iE 'claude|anthropic|gemini|copilot|codex|openai|noreply@anthropic' >/dev/null; then
+  echo "pre-commit: git identity looks like an AI tool. Use your own identity. See GIT_RULES.md §2." >&2; exit 1
+fi
+# Shared laptop: make the current seat visible on every commit.
+echo "pre-commit: committing as $name <$email>" >&2
+exit 0
