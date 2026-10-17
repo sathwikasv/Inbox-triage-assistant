@@ -51,22 +51,22 @@ describe("deadline escalations", () => {
 
 describe("AI opinion is checked against the rules", () => {
   it("no rule matched: the AI decides; unsure AI goes to review", () => {
-    const sure = one("The payment gateway is back up and transactions are flowing.", ai("resolution", 0.92));
+    const sure = one("The warehouse dashboard looks different this week.", ai("resolution", 0.92));
     expect(sure.decisions[0]).toMatchObject({ purpose: "resolution", review: { needed: false } });
     expect(sure.decisions[0].ai).toMatchObject({ rule_purpose: null, decided_by: "ai" });
-    const unsure = one("The payment gateway is back up and transactions are flowing.", ai("resolution", 0.4));
+    const unsure = one("The warehouse dashboard looks different this week.", ai("resolution", 0.4));
     expect(unsure.decisions[0].review.needed).toBe(true);
   });
 
   it("no rule matched and no AI: review", () => {
-    expect(one("The payment gateway is back up and transactions are flowing.").decisions[0].review).toMatchObject({ needed: true, reason: /no rule matched/ });
+    expect(one("The warehouse dashboard looks different this week.").decisions[0].review).toMatchObject({ needed: true, reason: /no rule matched/ });
   });
 
   it("disagreement is flagged; the AI wins only when very confident", () => {
-    const strong = one("Please note: the office will be closed on Diwali.", ai("fyi", 0.9));
+    const strong = one("Please book the meeting room for Friday.", ai("fyi", 0.9));
     expect(strong.decisions[0]).toMatchObject({ purpose: "fyi", review: { needed: true } });
     expect(strong.decisions[0].review.reason).toMatch(/rules said request, AI said fyi/);
-    const weak = one("Please note: the office will be closed on Diwali.", ai("fyi", 0.7));
+    const weak = one("Please book the meeting room for Friday.", ai("fyi", 0.7));
     expect(weak.decisions[0].purpose).toBe("request");
     expect(weak.decisions[0].review.needed).toBe(true);
   });
