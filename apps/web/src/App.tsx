@@ -1,9 +1,10 @@
 import { useEffect } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams, Link } from "react-router-dom";
 import { Toaster } from "sonner";
-import { BarChart3, ChevronDown, ClipboardCheck, Database, FlaskConical, Gavel, Inbox, LogOut, Moon, Search, Settings, ShieldCheck, Sparkles, Sun, Upload } from "lucide-react";
+import { BarChart3, ChevronDown, ClipboardCheck, Database, FlaskConical, Gavel, Inbox, LogOut, Moon, Search, Settings, ShieldCheck, Sparkles, Sun, Upload, Mail } from "lucide-react";
 import ImportPage from "./pages/ImportPage";
 import WorkspacePage from "./pages/WorkspacePage";
+import MailPage from "./pages/MailPage";
 import PlaygroundPage from "./pages/PlaygroundPage";
 import ReviewPage from "./pages/ReviewPage";
 import JudgePage from "./pages/JudgePage";
@@ -16,7 +17,8 @@ import { Avatar, Kbd, Menu, MenuCheck, MenuContent, MenuItem, MenuLabel, MenuSep
 import type { Role } from "./repo";
 
 const NAV = [
-  { to: "/inbox", label: "Inbox", icon: Inbox },
+  { to: "/mail", label: "Unified inbox", icon: Mail },
+  { to: "/inbox", label: "C16 triage", icon: Inbox },
   { to: "/insights", label: "Insights", icon: BarChart3 },
   { to: "/playground", label: "Test an email", icon: FlaskConical },
   { to: "/review", label: "Review", icon: ClipboardCheck },
@@ -134,7 +136,7 @@ export default function App() {
   const { boot, booted, apiStatus, notice, theme } = useTriage();
   const { pathname } = useLocation();
   const [paletteOpen, setPaletteOpen] = useCommandPalette();
-  const fullBleed = pathname.startsWith("/inbox");
+  const fullBleed = pathname.startsWith("/inbox") || pathname.startsWith("/mail");
   useEffect(() => {
     boot();
   }, [boot]);
@@ -154,6 +156,7 @@ export default function App() {
           ) : (
             <Routes>
               <Route path="/" element={<ImportPage />} />
+              <Route path="/mail" element={<MailPage />} />
               <Route path="/inbox" element={<WorkspacePage />} />
               <Route path="/inbox/:key" element={<WorkspacePage />} />
               <Route path="/insights" element={<InsightsPage />} />
