@@ -2,12 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Command } from "cmdk";
 import * as DG from "@radix-ui/react-dialog";
-import { BarChart3, FlaskConical, Gavel, Inbox, Moon, Search, Settings, ShieldCheck, Sun, Upload, UserCog, ClipboardCheck } from "lucide-react";
-import { STARTER_FIXTURE } from "../lib/starter";
-import { useTriage } from "../store/triage";
-import { ROLES } from "../lib/permissions";
-import { ACTION_META, Badge } from "../ui";
-import type { Role } from "../repo";
+import { CalendarDays, Clock, Inbox, LayoutDashboard, ListTodo, Mail, Moon, Search, Settings, Sun } from "lucide-react";
+import { useApp } from "../store/app";
+import { useMailboxView } from "../store/mailbox";
+import { CategoryBadge } from "./mail/common";
 
 export function useCommandPalette() {
   const [open, setOpen] = useState(false);
@@ -29,71 +27,67 @@ const group = "px-1 py-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:
 
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const navigate = useNavigate();
-  const { run, importFixture, theme, setTheme, setRole } = useTriage();
-  const go = (fn: () => void) => {
+  const view = useMailboxView();
+  const { theme, setTheme } = useApp();
+  const go = (to: string) => {
     onOpenChange(false);
-    fn();
+    navigate(to);
   };
-
   return (
     <DG.Root open={open} onOpenChange={onOpenChange}>
       <DG.Portal>
         <DG.Overlay className="fixed inset-0 z-40 bg-nav/40 backdrop-blur-[2px]" />
-        <DG.Content className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface shadow-pop">
-          <DG.Title className="sr-only">Command palette</DG.Title>
-          <Command label="Command palette" loop>
+        <DG.Content className="fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-line bg-surface shadow-pop">
+          <DG.Title className="sr-only">Search</DG.Title>
+          <Command label="Search">
             <div className="flex items-center gap-2 border-b border-line px-4">
               <Search className="h-4 w-4 text-muted" />
-              <Command.Input autoFocus placeholder="Search threads, pages and actions…" className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted" />
+              <Command.Input autoFocus placeholder="Search mail, tasks and pages…" className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted" />
             </div>
             <Command.List className="max-h-[60vh] overflow-y-auto p-1">
-              <Command.Empty className="px-4 py-8 text-center text-sm text-muted">No results.</Command.Empty>
-              {run && (
-                <Command.Group heading="Threads" className={group}>
-                  {run.result.threads.map((t) => (
-                    <Command.Item
-                      key={t.thread_key}
-                      value={`thread ${t.title} ${t.thread_key} ${t.email_ids.join(" ")}`}
-                      onSelect={() => go(() => navigate(`/inbox/${encodeURIComponent(t.thread_key)}`))}
-                      className={item}
-                    >
-                      <Inbox />
-                      <span className="flex-1 truncate">{t.title}</span>
-                      <Badge tone={ACTION_META[t.next_action.kind].tone}>{ACTION_META[t.next_action.kind].label}</Badge>
-                    </Command.Item>
-                  ))}
-                </Command.Group>
-              )}
+              <Command.Empty className="px-4 py-6 text-center text-sm text-muted">No results.</Command.Empty>
               <Command.Group heading="Go to" className={group}>
-                {[
-                  { to: "/inbox", label: "Inbox", icon: <Inbox /> },
-                  { to: "/insights", label: "Insights", icon: <BarChart3 /> },
-                  { to: "/playground", label: "Test an email", icon: <FlaskConical /> },
-                  { to: "/review", label: "Review and approvals", icon: <ClipboardCheck /> },
-                  { to: "/judge", label: "Judge view", icon: <Gavel /> },
-                  { to: "/settings", label: "Settings, roles and policy", icon: <Settings /> },
-                  { to: "/", label: "Data sources", icon: <Upload /> },
-                ].map((p) => (
-                  <Command.Item key={p.to} value={`go ${p.label}`} onSelect={() => go(() => navigate(p.to))} className={item}>
-                    {p.icon}
-                    {p.label}
+                <Command.Item onSelect={() => go("/dashboard")} className={item}>
+                  <LayoutDashboard /> Dashboard
+                </Command.Item>
+                <Command.Item onSelect={() => go("/inbox")} className={item}>
+                  <Inbox /> Inbox
+                </Command.Item>
+                <Command.Item onSelect={() => go("/tasks")} className={item}>
+                  <ListTodo /> Tasks
+                </Command.Item>
+                <Command.Item onSelect={() => go("/calendar")} className={item}>
+                  <CalendarDays /> Calendar
+                </Command.Item>
+                <Command.Item onSelect={() => go("/follow-ups")} className={item}>
+                  <Clock /> Follow-ups
+                </Command.Item>
+                <Command.Item onSelect={() => go("/settings")} className={item}>
+                  <Settings /> Settings and accounts
+                </Command.Item>
+              </Command.Group>
+              <Command.Group heading="Conversations" className={group}>
+                {view.threads.map((t) => {
+                  const last = view.messages.find((m) => m.id === t.message_ids.at(-1))!;
+                  return (
+                    <Command.Item key={t.key} value={`${t.subject} ${last.from.name ?? ""} ${last.from.email} ${t.key}`} onSelect={() => go(`/inbox?t=${encodeURIComponent(t.key)}`)} className={item}>
+                      <Mail />
+                      <span className="min-w-0 flex-1 truncate">{t.subject}</span>
+                      <CategoryBadge category={t.category} />
+                    </Command.Item>
+                  );
+                })}
+              </Command.Group>
+              <Command.Group heading="Tasks" className={group}>
+                {view.tasks.map((t) => (
+                  <Command.Item key={t.id} value={`task ${t.title}`} onSelect={() => go("/tasks")} className={item}>
+                    <ListTodo /> {t.title}
                   </Command.Item>
                 ))}
               </Command.Group>
-              <Command.Group heading="Actions" className={group}>
-                <Command.Item value="load starter fixture import" onSelect={() => go(() => importFixture(STARTER_FIXTURE, "starter fixture (data/fixture/C16/fixture.json)").then(() => navigate("/inbox")))} className={item}>
-                  <Upload /> Load the starter fixture
-                </Command.Item>
-                <Command.Item value="toggle theme dark light" onSelect={() => go(() => setTheme(theme === "dark" ? "light" : "dark"))} className={item}>
-                  {theme === "dark" ? <Sun /> : <Moon />} Switch to {theme === "dark" ? "light" : "dark"} mode
-                </Command.Item>
-                {(Object.keys(ROLES) as Role[]).map((r) => (
-                  <Command.Item key={r} value={`role act as ${r}`} onSelect={() => go(() => setRole(r))} className={item}>
-                    <UserCog /> Act as {ROLES[r].label}
-                  </Command.Item>
-                ))}
-                <Command.Item value="policy permissions" onSelect={() => go(() => navigate("/settings"))} className={item}>
-                  <ShieldCheck /> View the draft-only policy
+              <Command.Group heading="Preferences" className={group}>
+                <Command.Item onSelect={() => setTheme(theme === "dark" ? "light" : "dark")} className={item}>
+                  {theme === "dark" ? <Sun /> : <Moon />} Switch to {theme === "dark" ? "light" : "dark"} theme
                 </Command.Item>
               </Command.Group>
             </Command.List>
