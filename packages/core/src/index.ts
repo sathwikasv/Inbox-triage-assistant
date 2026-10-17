@@ -1,5 +1,9 @@
 export * from "./types.js";
-export { POLICY } from "./policy.js";
-export { parseFixture } from "./schema.js";
-export { sortEmails } from "./normalize.js";
+export { POLICY, policyIntact } from "./policy.js";
+export { parseFixture, FixtureError } from "./schema.js";
+export { sortEmails, splitQuoted } from "./normalize.js";
+export { classifyPurpose, classifyUrgency, PURPOSE_RULES } from "./classify.js";
+export { detectInjection, INJECTION_RULES } from "./injection.js";
+export { TOPICS, QUARANTINE } from "./threading.js";
+export { formatDate } from "./extract/dates.js";
 export { runTriage, fixtureHash } from "./pipeline.js";
