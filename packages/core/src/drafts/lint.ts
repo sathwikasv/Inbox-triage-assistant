@@ -48,14 +48,18 @@ export function allowedDates(t: ThreadFacts): string[] {
   return [t.latest_due, t.watch_date].filter((d): d is string => !!d);
 }
 
-export function lintDraft(body: string, t: ThreadFacts): { ok: boolean; violations: LintViolation[] } {
+/**
+ * Lints a draft against the thread's facts. `extra.dates` admits dates the thread's own emails propose
+ * (a meeting time someone asked for), so a scheduling reply can name the slot it answers.
+ */
+export function lintDraft(body: string, t: ThreadFacts, extra: { dates?: string[] } = {}): { ok: boolean; violations: LintViolation[] } {
   const violations: LintViolation[] = [];
   for (const r of LINT_RULES) {
     const m = r.pattern.exec(body);
     if (m && !(r.allowedIf?.(t) ?? false)) violations.push({ term: m[0], reason: r.reason });
   }
 
-  const allowed = allowedDates(t);
+  const allowed = [...allowedDates(t), ...(extra.dates ?? [])];
   const ref = new Date(`${allowed[0] ?? t.due_history[0]?.date ?? "2026-10-16"}T12:00:00Z`);
   for (const p of chrono.parse(body, ref)) {
     if (RELATIVE.test(p.text)) {
