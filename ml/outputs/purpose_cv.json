@@ -1,0 +1,75 @@
+{
+  "blocker": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1-score": 1.0,
+    "support": 9.0
+  },
+  "commitment": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1-score": 1.0,
+    "support": 9.0
+  },
+  "correction": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1-score": 1.0,
+    "support": 9.0
+  },
+  "duplicate": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1-score": 1.0,
+    "support": 9.0
+  },
+  "fyi": {
+    "precision": 1.0,
+    "recall": 0.9655172413793104,
+    "f1-score": 0.9824561403508771,
+    "support": 29.0
+  },
+  "injection": {
+    "precision": 0.9666666666666667,
+    "recall": 1.0,
+    "f1-score": 0.9830508474576272,
+    "support": 29.0
+  },
+  "question": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1-score": 1.0,
+    "support": 9.0
+  },
+  "request": {
+    "precision": 1.0,
+    "recall": 0.9,
+    "f1-score": 0.9473684210526315,
+    "support": 10.0
+  },
+  "resolution": {
+    "precision": 0.9090909090909091,
+    "recall": 1.0,
+    "f1-score": 0.9523809523809523,
+    "support": 10.0
+  },
+  "status_update": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1-score": 1.0,
+    "support": 9.0
+  },
+  "accuracy": 0.9848484848484849,
+  "macro avg": {
+    "precision": 0.9875757575757576,
+    "recall": 0.986551724137931,
+    "f1-score": 0.9865256361242087,
+    "support": 132.0
+  },
+  "weighted avg": {
+    "precision": 0.9857897153351699,
+    "recall": 0.9848484848484849,
+    "f1-score": 0.9848272453089579,
+    "support": 132.0
+  }
+}

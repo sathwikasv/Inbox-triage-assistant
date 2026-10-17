@@ -1,0 +1,62 @@
+{
+  "E01": {
+    "purpose": "request",
+    "urgency": "high",
+    "confidence": 0.4791
+  },
+  "E02": {
+    "purpose": "correction",
+    "urgency": "high",
+    "confidence": 0.6316
+  },
+  "E03": {
+    "purpose": "resolution",
+    "urgency": "low",
+    "confidence": 0.5774
+  },
+  "E04": {
+    "purpose": "commitment",
+    "urgency": "low",
+    "confidence": 0.5475
+  },
+  "E05": {
+    "purpose": "injection",
+    "urgency": "n/a",
+    "confidence": 0.3671
+  },
+  "E06": {
+    "purpose": "request",
+    "urgency": "high",
+    "confidence": 0.3926
+  },
+  "E07": {
+    "purpose": "blocker",
+    "urgency": "high",
+    "confidence": 0.6312
+  },
+  "E08": {
+    "purpose": "resolution",
+    "urgency": "low",
+    "confidence": 0.3878
+  },
+  "E09": {
+    "purpose": "question",
+    "urgency": "medium",
+    "confidence": 0.591
+  },
+  "E10": {
+    "purpose": "duplicate",
+    "urgency": "medium",
+    "confidence": 0.4523
+  },
+  "E11": {
+    "purpose": "status_update",
+    "urgency": "low",
+    "confidence": 0.5213
+  },
+  "E12": {
+    "purpose": "fyi",
+    "urgency": "low",
+    "confidence": 0.2965
+  }
+}
