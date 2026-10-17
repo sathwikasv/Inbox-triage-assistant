@@ -44,6 +44,10 @@ export function reconcile(items: AnalyzedEmail[], assign: Map<string, ThreadAssi
       draft_mode: "none",
       draft_reason: "",
       email_ids: list.map((a) => a.email.email_id),
+      next_action: { kind: "archive", label: "", reason: "" }, // set by route()
+      escalations: [],
+      last_activity: null,
+      age_days: null,
     };
     let hadWork = false;
     let noChase = false;
@@ -69,6 +73,9 @@ export function reconcile(items: AnalyzedEmail[], assign: Map<string, ThreadAssi
         proposed: { labels: [], archive: false, reason: "" },
         explain: { purpose: as.exact_duplicate_of ? `identical text to ${as.exact_duplicate_of}` : a.purpose_why, urgency: "", thread: as.rule },
         notes,
+        age_days: null,
+        ai: a.ai,
+        review: a.review,
       };
       if (a.quoted) notes.push("quoted history ignored for facts and actions");
       const dueDates = a.dates.filter((x) => x.date && (x.cue === "due" || purpose === "correction"));
