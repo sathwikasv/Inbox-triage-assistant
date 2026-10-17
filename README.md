@@ -24,10 +24,16 @@ Built for the Fynd × NMIMS case C16 (inbox triage and reply drafts). The plan, 
   - A claims check blocks invented attachments, payments, approvals and wrong dates.
   - Dates and commitments need an Approver.
   - Money, legal terms and personal data need an extra confirmation at send time.
+- **AI assistant** (optional, needs `GEMINI_API_KEY` on the server and your opt-in).
+  - Works through the conversations that need you: a short summary, key facts and a reply draft, ready in the composer.
+  - Every AI draft gets the same claims check as your own edits; a draft that invents attachments, payments, approvals or dates is withheld.
+  - Flags what needs a person (money, legal terms, personal data, commitments, unhappy senders), next to the rules' approval and date checks. Each flag says whether it came from the AI or the rules.
+  - Never sends, archives or changes anything.
+- **Needs your review.** A bell and a "Needs review" folder collect quarantined mail, assistant flags, drafts waiting for an Approver, dates to confirm, meeting clashes and overdue tasks. Desktop notifications are optional.
 - **Dashboard.** Unread, urgent, pending tasks, deadlines, today's meetings, follow-ups, mailboxes and recent activity.
 
 ## Demo and connected mode
-- **Demo mode** (on by default): three labelled demo accounts (Gmail, Outlook, Yahoo) with 26 fictional emails, including the 12 C16 case emails, and a demo calendar. Sends and calendar changes in demo mode are simulated and say so. Turn it off in Settings → Accounts.
+- **Demo mode** (only while no provider is configured): three labelled demo accounts (Gmail, Outlook, Yahoo) with 26 fictional emails, including the 12 C16 case emails, and a demo calendar. Sends and calendar changes in demo mode are simulated and say so. Turn it off in Settings → Accounts.
 - **Connected mode:** real mailboxes after you add the provider app IDs (below).
   - Mail is read-only until you allow sending for that account.
   - Calendars are connected separately from mail.

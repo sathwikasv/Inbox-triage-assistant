@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Archive, ArchiveRestore, ArrowDownWideNarrow, CalendarClock, Columns2, Inbox, ListTodo, Mail, MailOpen, Paperclip, Reply, RefreshCw, Rows3, Search, ShieldAlert, Sparkles, Star, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowDownWideNarrow, CalendarClock, Columns2, Inbox, ListTodo, Mail, MailOpen, MessageSquareWarning, Paperclip, Reply, RefreshCw, Rows3, Search, ShieldAlert, Sparkles, Star, X } from "lucide-react";
 import { CATEGORY_LABEL, setRead, splitQuoted, type Category, type MailThread, type MailboxView } from "@c16/core";
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
@@ -8,6 +8,9 @@ import { ThreadView } from "../components/mail/ThreadView";
 import { CAT, CATS, CategoryBadge, PRIORITY_ORDER, PriorityBadge, ProviderMark, SenderAvatar, dayBucket, firstName, listTime, nameOf, type DayBucket } from "../components/mail/common";
 import { FOLDER_LABEL, inFolder, queue, useThreadContext, type Folder, type ThreadContext } from "../lib/folders";
 import { useThreadActions } from "../lib/threadActions";
+import { useReviewItems } from "../lib/review";
+import { lastMessageId, useAssistant } from "../store/assistant";
+import { AssistantOffer, ConnectMailboxes, ReconnectBar } from "../components/Onboarding";
 import { Button, EmptyState, Kbd, Tip, cn } from "../ui";
 
 export { FOLDER_LABEL, inFolder, type Folder } from "../lib/folders";
@@ -52,6 +55,9 @@ export default function InboxPage() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const ctx = useThreadContext(view, state);
   const actions = useThreadActions(view);
+  const reviewItems = useReviewItems();
+  const reviewKeys = useMemo(() => new Set(reviewItems.map((i) => i.thread_key)), [reviewItems]);
+  const results = useAssistant((s) => s.results);
   const tz = prefs.timezone;
   const split = prefs.pane === "right";
 
@@ -59,7 +65,7 @@ export default function InboxPage() {
   const threads = useMemo(() => {
     const q = query.toLowerCase();
     const list = view.threads.filter((t) => {
-      if (!inScope(t) || !inFolder(t, folder, ctx)) return false;
+      if (!inScope(t) || !inFolder(t, folder, { ...ctx, review: reviewKeys })) return false;
       if (unreadOnly && !t.unread) return false;
       if (withFiles && !ctx.attachments.has(t.key)) return false;
       if (!q) return true;
@@ -69,7 +75,7 @@ export default function InboxPage() {
       });
     });
     return sort === "priority" ? [...list].sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority) || Date.parse(b.last_at) - Date.parse(a.last_at)) : list;
-  }, [view.threads, folder, account, query, unreadOnly, withFiles, sort, ctx]);
+  }, [view.threads, folder, account, query, unreadOnly, withFiles, sort, ctx, reviewKeys]);
 
   const groups = useMemo(() => {
     const out: { label: string; items: MailThread[] }[] = [];
@@ -143,11 +149,13 @@ export default function InboxPage() {
 
   if (!view.accounts.length) {
     return (
-      <div className="grid h-full place-items-center p-6">
-        <div className="max-w-lg">
-          <EmptyState icon={<Inbox />} title="No mailboxes yet" action={<Button variant="primary" onClick={() => navigate("/settings")}>Connect a mailbox</Button>}>
-            Connect Gmail, Outlook or Yahoo, import a file, or turn the demo mailboxes back on in Settings.
+      <div className="h-full overflow-y-auto">
+        <ReconnectBar />
+        <div className="mx-auto max-w-2xl space-y-4 p-6">
+          <EmptyState icon={<Inbox />} title="Your inbox is empty" action={<Button onClick={() => navigate("/settings?s=import")}>Import a file instead</Button>}>
+            Connect a mailbox to see your real mail here, sorted and ready to answer.
           </EmptyState>
+          <ConnectMailboxes />
         </div>
       </div>
     );
@@ -159,6 +167,7 @@ export default function InboxPage() {
 
   const list = (
     <section className={cn("flex min-h-0 min-w-0 flex-col", split && current ? "hidden border-r border-line lg:flex" : "flex", !split && current && "hidden")}>
+      <ReconnectBar />
       <div className="border-b border-line">
         <div className="flex h-12 items-center gap-1 px-2 sm:px-3">
           <span className="grid h-9 w-9 place-items-center">
@@ -273,6 +282,11 @@ export default function InboxPage() {
             </span>
           </div>
         )}
+        {folder === "review" && (
+          <div className="flex items-center gap-2 border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+            <MessageSquareWarning className="h-4 w-4 shrink-0" /> Conversations the rules or the AI assistant flagged for a person to check before anything goes out.
+          </div>
+        )}
         {folder === "spam" && (
           <div className="flex items-center gap-2 border-t border-rose-200 bg-rose-50 px-4 py-2 text-xs text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
             <ShieldAlert className="h-4 w-4 shrink-0" /> Quarantined: links are not opened, instructions are never followed and replies are blocked.
@@ -296,6 +310,8 @@ export default function InboxPage() {
                   active={t.key === selectedKey}
                   checked={checked.has(t.key)}
                   selecting={sel.length > 0}
+                  aiReady={!!results[t.key]?.reply && results[t.key].for_message === lastMessageId(t)}
+                  needsReview={reviewKeys.has(t.key)}
                   now={view.now}
                   tz={tz}
                   onOpen={() => open(t)}
@@ -377,6 +393,8 @@ function Row(p: {
   active: boolean;
   checked: boolean;
   selecting: boolean;
+  aiReady: boolean;
+  needsReview: boolean;
   now: string;
   tz: string;
   onOpen: () => void;
@@ -394,6 +412,8 @@ function Row(p: {
   const bg = p.active ? "bg-brand-soft/80" : p.checked ? "bg-brand-soft/50" : unread ? "bg-row-unread" : "bg-row-read";
   const icons = (
     <>
+      {p.needsReview && <MessageSquareWarning className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label="needs review" />}
+      {p.aiReady && <Sparkles className="h-3.5 w-3.5 shrink-0 text-violet-600" aria-label="AI draft ready" />}
       {r.meeting && <CalendarClock className="h-3.5 w-3.5 shrink-0 text-sky-600" aria-label="meeting request" />}
       {r.task && <ListTodo className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label="task found" />}
       {ctx.attachments.has(t.key) && <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted" aria-label="attachment" />}
@@ -508,7 +528,10 @@ function EmptyPane({ view, threads, ctx, onOpen }: { view: MailboxView; threads:
   const unread = threads.reduce((n, t) => n + t.unread, 0);
   return (
     <section className="hidden min-h-0 overflow-y-auto bg-canvas/40 lg:block">
-      <div className="mx-auto flex max-w-lg flex-col items-center px-6 py-14 text-center">
+      <div className="mx-auto max-w-lg px-6 pt-6">
+        <AssistantOffer />
+      </div>
+      <div className="mx-auto flex max-w-lg flex-col items-center px-6 py-10 text-center">
         <div className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-brand-soft to-surface text-brand shadow-card">
           <Mail className="h-7 w-7" />
         </div>

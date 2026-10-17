@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CalendarDays, Check, Download, KeyRound, Loader2, Lock, Minus, RefreshCw, ShieldCheck, SlidersHorizontal, Trash2, UploadCloud, Users } from "lucide-react";
+import { Ban, CalendarDays, Check, Download, KeyRound, Loader2, Lock, Minus, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, UploadCloud, Users } from "lucide-react";
+import { useAssistant } from "../store/assistant";
+import { useReviewItems } from "../lib/review";
 import { fixtureToCsv, type Role } from "@c16/core";
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
@@ -10,7 +12,7 @@ import { PERMISSIONS, ROLES } from "../lib/permissions";
 import { ProviderMark, accountNote, localTime } from "../components/mail/common";
 import { Badge, Button, Segmented, Tip, cn } from "../ui";
 
-type Section = "accounts" | "integrations" | "preferences" | "safety" | "import";
+type Section = "accounts" | "assistant" | "integrations" | "preferences" | "safety" | "import";
 const ZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "Europe/Berlin", "America/New_York", "America/Chicago", "America/Los_Angeles", "Australia/Sydney", "UTC"];
 
 function Card({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
@@ -33,6 +35,7 @@ function download(name: string, text: string, type: string) {
 
 const SECTIONS: { value: Section; label: string; hint: string; icon: typeof Users }[] = [
   { value: "accounts", label: "Accounts", hint: "Mailboxes and calendars", icon: Users },
+  { value: "assistant", label: "AI assistant", hint: "Drafts, review flags, alerts", icon: Sparkles },
   { value: "integrations", label: "Integrations", hint: "Provider app IDs, server", icon: KeyRound },
   { value: "preferences", label: "Preferences", hint: "Name, timezone, theme", icon: SlidersHorizontal },
   { value: "safety", label: "Safety and permissions", hint: "Roles, rules, activity", icon: ShieldCheck },
@@ -66,6 +69,7 @@ export default function SettingsPage() {
         </nav>
         <div className="min-w-0">
           {section === "accounts" && <Accounts />}
+          {section === "assistant" && <AssistantSection />}
           {section === "integrations" && <Integrations />}
           {section === "preferences" && <Preferences />}
           {section === "safety" && <Safety />}
@@ -406,5 +410,80 @@ function ImportSection() {
         <KeyRound className="h-3.5 w-3.5" /> Files cannot set sending permissions; any such column is ignored.
       </p>
     </Card>
+  );
+}
+
+function AssistantSection() {
+  const a = useAssistant();
+  const items = useReviewItems();
+  const drafts = Object.values(a.results).filter((r) => r.reply).length;
+  const api = setting("api");
+  const row = (label: string, ok: boolean, text: React.ReactNode) => (
+    <div className="flex items-start gap-3 py-2">
+      <span className={cn("mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full", ok ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300")}>{ok ? <Check className="h-3 w-3" /> : <Minus className="h-3 w-3" />}</span>
+      <span className="w-28 shrink-0 text-sm font-medium">{label}</span>
+      <span className="text-sm text-muted">{text}</span>
+    </div>
+  );
+  return (
+    <div className="space-y-4">
+      <Card title="AI assistant" description="Reads the conversations that need you, summarises them, drafts replies and flags what needs your review. It never sends, archives or changes anything.">
+        <div className="divide-y divide-line">
+          {row("Server", a.status.server === "ok", a.status.server === "none" ? <>Not set. Add <code className="font-mono text-xs">VITE_API_URL</code> to the repo-root .env, or the server URL under Integrations.</> : a.status.server === "down" ? <>Not reachable at <code className="font-mono text-xs">{api}</code>. Start it with <code className="font-mono text-xs">pnpm dev</code>.</> : <>Connected at <code className="font-mono text-xs">{api}</code></>)}
+          {row("Model", a.status.available, a.status.available ? a.status.model : <>No <code className="font-mono text-xs">GEMINI_API_KEY</code> on the server, so there are no AI summaries or drafts. Review flags from the rules still work.</>)}
+        </div>
+        <div className="mt-4 space-y-3 border-t border-line pt-4 text-sm">
+          <label className={cn("flex items-start gap-2", !a.status.available && "opacity-50")}>
+            <input type="checkbox" className="mt-0.5" checked={a.enabled} disabled={!a.status.available} onChange={(e) => a.setEnabled(e.target.checked)} />
+            <span>
+              <span className="font-medium">Let the assistant read conversations that need me and draft replies</span>
+              <span className="block text-xs text-muted">Only conversations in Urgent, Requires action, To delegate, Meetings and Follow-up, one at a time. Quarantined mail is never sent to the model.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2">
+            <input type="checkbox" className="mt-0.5" checked={a.notify} onChange={(e) => a.setNotify(e.target.checked)} />
+            <span>
+              <span className="font-medium">Desktop notifications when something needs my review</span>
+              <span className="block text-xs text-muted">Your browser asks for permission once. Works with the rules alone, too.</span>
+            </span>
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-line pt-4 text-sm">
+          <span>
+            <b className="tabular-nums">{a.analyzed}</b> <span className="text-muted">read this session</span>
+          </span>
+          <span>
+            <b className="tabular-nums">{drafts}</b> <span className="text-muted">drafts ready</span>
+          </span>
+          <span>
+            <b className="tabular-nums">{items.length}</b> <span className="text-muted">items need review</span>
+          </span>
+          <Button size="sm" className="ml-auto" onClick={() => a.checkStatus()}>
+            <RefreshCw className="h-4 w-4" /> Check again
+          </Button>
+        </div>
+      </Card>
+      <Card title="What it does, and what it never does">
+        <ul className="space-y-2 text-sm">
+          {[
+            [true, "Summarises each conversation and lists its key facts (deadlines, amounts, names)."],
+            [true, "Drafts a reply when one is expected. The draft gets the same claims check as your own edits: one that invents attachments, payments, approvals or dates is withheld."],
+            [true, "Flags what needs a person: money, legal terms, personal data, commitments, unhappy senders, unclear requests. Rules add approval and date checks, each labelled."],
+            [false, "Never sends, archives, deletes or changes anything. Every reply waits for you to review, save and confirm."],
+            [false, "Never follows instructions written inside an email, and never reads quarantined mail."],
+            [false, "Never stores email content in the browser. Results stay in this tab's memory."],
+          ].map(([ok, t]) => (
+            <li key={t as string} className="flex gap-2">
+              {ok ? <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <Ban className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />} {t as string}
+            </li>
+          ))}
+        </ul>
+      </Card>
+      <Card title="Privacy" description="Where email text goes when the assistant is on.">
+        <p className="text-sm text-muted">
+          The text of each conversation it reads goes from your own server to Google's Gemini API (model {a.status.model ?? "not configured"}). The API key stays on the server and never reaches the browser. On the free tier Google may use prompts to improve its products, so use a paid key for private mail.
+        </p>
+      </Card>
+    </div>
   );
 }

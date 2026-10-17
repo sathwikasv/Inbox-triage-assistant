@@ -10,6 +10,8 @@ import {
   FilePen,
   HelpCircle,
   Inbox,
+  Loader2,
+  MessageSquareWarning,
   LayoutDashboard,
   ListTodo,
   Mail,
@@ -34,6 +36,10 @@ import FollowupsPage from "./pages/FollowupsPage";
 import SettingsPage from "./pages/SettingsPage";
 import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
 import { ShortcutsDialog } from "./components/ShortcutsDialog";
+import { NotificationBell } from "./components/NotificationBell";
+import { AssistantAgent } from "./components/AssistantAgent";
+import { useAssistant } from "./store/assistant";
+import { useReviewItems } from "./lib/review";
 import { useApp } from "./store/app";
 import { useMailbox, useMailboxView } from "./store/mailbox";
 import { ROLES } from "./lib/permissions";
@@ -49,7 +55,9 @@ function Sidebar({ rail, onNavigate }: { rail: boolean; onNavigate?: () => void 
   const { pathname } = useLocation();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const ctx = useThreadContext(view, state);
+  const base = useThreadContext(view, state);
+  const reviewItems = useReviewItems();
+  const ctx = { ...base, review: new Set(reviewItems.map((i) => i.thread_key)) };
   const folder = pathname === "/inbox" ? ((params.get("view") ?? "inbox") as Folder) : null;
   const account = params.get("account");
   const count = (f: Folder) => view.threads.filter((t) => inFolder(t, f, ctx)).length;
@@ -125,6 +133,7 @@ function Sidebar({ rail, onNavigate }: { rail: boolean; onNavigate?: () => void 
       <div className="space-y-px">
         <P to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
         <F f="inbox" icon={Inbox} label="Inbox" n={unread("inbox")} strong />
+        <F f="review" icon={MessageSquareWarning} label="Needs review" n={count("review")} />
         <F f="starred" icon={Star} label="Starred" n={count("starred")} />
         <F f="drafts" icon={FilePen} label="Drafts" n={count("drafts")} />
         <F f="sent" icon={Send} label="Sent" />
@@ -232,6 +241,7 @@ function TopBar({ onPalette, onMenu, onHelp }: { onPalette: () => void; onMenu: 
   const { theme, setTheme, role, setRole, prefs } = useApp();
   const view = useMailboxView();
   const demo = view.accounts.some((a) => a.mode === "demo");
+  const assistant = useAssistant();
   const navigate = useNavigate();
   const icon = "grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-fg/[0.08] hover:text-fg";
   return (
@@ -256,6 +266,14 @@ function TopBar({ onPalette, onMenu, onHelp }: { onPalette: () => void; onMenu: 
             </Link>
           </Tip>
         )}
+        {assistant.enabled && assistant.status.available && (
+          <Tip content={assistant.working ? "The assistant is reading a conversation" : `AI assistant on (${assistant.status.model})`}>
+            <Link to="/settings?s=assistant" className="mr-1 hidden items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-800 hover:bg-violet-200 dark:bg-violet-500/15 dark:text-violet-200 lg:inline-flex">
+              {assistant.working ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} AI assistant
+            </Link>
+          </Tip>
+        )}
+        <NotificationBell />
         <Tip content="Command menu (Ctrl K)">
           <button onClick={onPalette} className={icon} aria-label="Open command menu">
             <CommandIcon className="h-[18px] w-[18px]" />
@@ -386,6 +404,7 @@ export default function App() {
             </div>
           </main>
         </div>
+        <AssistantAgent />
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
         <ShortcutsDialog open={help} onOpenChange={setHelp} />
         <Toaster position="bottom-left" theme={theme} richColors closeButton />

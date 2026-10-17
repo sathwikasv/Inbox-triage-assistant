@@ -12,7 +12,10 @@
 - **Rules first.**
   - Categories, deadlines and owners come from rules. Unusual phrasing may get a "please check the category" flag or a "confirm the date" prompt instead of a confident answer.
   - Our accuracy sets are synthetic and written by the team ([accuracy.md](accuracy.md)).
-- **AI is optional.** With `GEMINI_API_KEY` set on the server, Gemini can rewrite a draft, and the claims check still applies. Without it, "Regenerate" cycles template tones and the draft is labelled as a template.
+- **AI is optional.** With `GEMINI_API_KEY` set on the server and the assistant turned on, Gemini summarises the conversations that need you and drafts replies, and the claims check still applies. Without it, "Regenerate" cycles template tones and the draft is labelled as a template.
+  - Assistant results live in the tab's memory, so a full page reload reads those conversations again (up to 40 per session).
+  - The assistant reads one conversation at a time; a large backlog takes a while.
+  - On Gemini's free tier, Google may use prompts to improve its products. Use a paid key for private mail.
 - **No new emails.** Only replies are drafted: there is no compose-new-email screen, and forwarding is not supported.
 - **Timezones.**
   - Times are read in the zone stated in the email, else the sender's own timestamp zone.

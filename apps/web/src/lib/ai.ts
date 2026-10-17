@@ -33,3 +33,48 @@ export async function aiReply(req: AiReplyRequest): Promise<{ ok: true; body: st
     return { ok: false, error: (e as Error).message };
   }
 }
+
+export interface ReviewReason {
+  text: string;
+  source: "ai" | "rules";
+}
+export interface AssistRequest {
+  subject: string;
+  user_name: string;
+  category?: string;
+  messages: AiReplyRequest["messages"];
+}
+export interface AssistResult {
+  status: "ok";
+  model: string;
+  summary: string;
+  key_points: string[];
+  needs_reply: boolean;
+  reply: string | null; // already checked by the server's claims check; null when withheld or not needed
+  reply_status: "ok" | "rejected" | "none";
+  review: { needed: boolean; reasons: ReviewReason[] };
+}
+
+/** Whether the server answers, and whether it has a model key. */
+export async function assistantStatus(): Promise<{ server: "none" | "down" | "ok"; enabled: boolean; model: string | null }> {
+  if (!base()) return { server: "none", enabled: false, model: null };
+  try {
+    const r = await fetch(`${base()}/ai/status`);
+    if (!r.ok) return { server: "down", enabled: false, model: null };
+    const j = (await r.json()) as { enabled: boolean; model: string | null };
+    return { server: "ok", ...j };
+  } catch {
+    return { server: "down", enabled: false, model: null };
+  }
+}
+
+export async function aiAssist(req: AssistRequest): Promise<AssistResult | { status: "error"; error: string }> {
+  try {
+    const r = await fetch(`${base()}/ai/assist`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
+    const j = (await r.json().catch(() => ({}))) as AssistResult & { error?: string };
+    if (r.ok && j.status === "ok") return j;
+    return { status: "error", error: j.error ?? `assistant ${r.status}` };
+  } catch (e) {
+    return { status: "error", error: (e as Error).message };
+  }
+}
