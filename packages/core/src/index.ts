@@ -7,4 +7,5 @@ export { detectInjection, INJECTION_RULES } from "./injection.js";
 export { TOPICS, QUARANTINE } from "./threading.js";
 export { formatDate } from "./extract/dates.js";
 export { buildDrafts, lintDraft, allowedDates, templateDraft, LINT_RULES } from "./drafts/index.js";
+export { computeMetrics } from "./metrics.js";
 export { runTriage, fixtureHash } from "./pipeline.js";
