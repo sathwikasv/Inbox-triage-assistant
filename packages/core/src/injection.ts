@@ -13,14 +13,16 @@ export const INJECTION_RULES: { id: string; pattern: RegExp; why: string }[] = [
   },
   {
     id: "data-exfiltration",
+    // Secrets only count when someone asks for them to be moved; "stuck until the API keys arrive" is not an attack.
     pattern:
-      /\b(send|forward|export|share|email|upload|leak|give)\b[^.]{0,40}\b(private|confidential|personal|sensitive|secret|internal)\b|\b(send|forward|export|share|email|upload)\b[^.]{0,30}\b(customer|user|employee|client)s?\s+(list|data|records|details|database|emails)\b|\b(passwords?|credentials|api keys?)\b/i,
+      /\b(send|forward|export|share|email|upload|leak|give)\b[^.]{0,40}\b(private|confidential|personal|sensitive|secret|internal)\b|\b(send|forward|export|share|email|upload)\b[^.]{0,30}\b(all\s+)?(customer|user|employee|client|vendor)s?\s+(list|data|records|details|database|emails)\b|\b(send|share|forward|give|email|post|paste|export)\b[^.]{0,40}\b(passwords?|credentials|api keys?|otps?|bank (account )?details|card numbers?|payroll|salar(y|ies))\b/i,
     why: "asks for private or bulk data to be sent out",
   },
   {
     id: "permission-change",
-    pattern: /\b(enable|turn on|switch on|allow|set)\b[^.]{0,25}\b(auto[-_ ]?send|sending|send permission|full access)\b|\bauto_send\s*[:=]\s*true\b|\bdraft_only\s*[:=]\s*false\b/i,
-    why: "tries to change sending permissions",
+    pattern:
+      /\b(enable|turn on|switch on|allow|set)\b[^.]{0,25}\b(auto[-_ ]?send|sending|send permission|full access)\b|\bauto_send\s*[:=]\s*true\b|\bdraft_only\s*[:=]\s*false\b|\b(send|approve|archive|delete|forward)\b[^.]{0,40}\b(automatically|without (review|approval|asking|checking))\b|\b(disable|turn off|bypass)\b[^.]{0,20}\b(draft[-_ ]?only|review|approval)\b/i,
+    why: "tries to change sending permissions or skip human review",
   },
   {
     id: "role-hijack",
