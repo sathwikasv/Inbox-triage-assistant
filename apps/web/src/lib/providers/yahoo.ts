@@ -58,6 +58,14 @@ export const yahoo: MailProviderClient = {
   async send(_account, r: OutgoingReply) {
     return call<{ message_id: string }>("/providers/yahoo/send", { method: "POST", body: JSON.stringify({ to: r.to, cc: r.cc, subject: r.subject, body: r.body, in_reply_to: r.in_reply_to.rfc822_id ?? null }) });
   },
+  async restore() {
+    if (!api()) return null;
+    try {
+      return await call<{ account: MailAccount; messages: MailMessage[] }>("/providers/yahoo/messages");
+    } catch {
+      return null; // no live server session: the person reconnects with one click
+    }
+  },
   async disconnect() {
     await call("/providers/yahoo/disconnect", { method: "POST" }).catch(() => undefined);
   },

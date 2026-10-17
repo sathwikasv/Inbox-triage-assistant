@@ -22,6 +22,12 @@ import { useApp } from "./app";
 
 const STATE_KEY = "c16.mailbox.state.v1";
 const IMPORT_KEY = "c16.mailbox.imported.v1";
+const KNOWN_KEY = "c16.mailbox.known.v1"; // which mailboxes were connected (provider + address only; never tokens)
+
+export interface KnownMailbox {
+  provider: "gmail" | "outlook" | "yahoo";
+  address: string;
+}
 
 interface Mailbox {
   account: MailAccount;
@@ -57,9 +63,11 @@ interface MailboxStore {
   connected: Mailbox[]; // live provider mailboxes (memory only; tokens never touch storage)
   calendars: CalendarLink[]; // live calendars (memory only)
   busy: Record<string, boolean>;
+  known: KnownMailbox[];
   apply(fn: (s: MailboxState) => MailboxState, ok?: string): boolean;
   connect(provider: "gmail" | "outlook" | "yahoo"): Promise<void>;
   refresh(accountId: string): Promise<void>;
+  restore(): Promise<void>;
   disconnect(accountId: string): Promise<void>;
   enableSend(accountId: string): Promise<void>;
   send(view: MailboxView, threadKey: string, confirmed: string[]): Promise<boolean>;
@@ -89,6 +97,17 @@ export const useMailbox = create<MailboxStore>((set, get) => {
     }
   };
   const upsert = (list: Mailbox[], m: Mailbox) => [...list.filter((x) => x.account.id !== m.account.id), m];
+  const remember = (k: KnownMailbox[]) => {
+    save(KNOWN_KEY, k);
+    set({ known: k });
+  };
+  const connected = (r: Mailbox) => {
+    set({ connected: upsert(get().connected, r) });
+    const p = r.account.provider as KnownMailbox["provider"];
+    remember([...get().known.filter((k) => !(k.provider === p && k.address === r.account.address)), { provider: p, address: r.account.address }]);
+    // Real mail is here: the fictional demo mailboxes step aside (they can be shown again in Settings).
+    if (useApp.getState().prefs.showDemo) useApp.getState().setPrefs({ showDemo: false });
+  };
 
   return {
     state: load(STATE_KEY, EMPTY_STATE),
@@ -102,6 +121,13 @@ export const useMailbox = create<MailboxStore>((set, get) => {
     connected: [],
     calendars: [],
     busy: {},
+    known: (() => {
+      try {
+        return JSON.parse(localStorage.getItem(KNOWN_KEY) ?? "[]") as KnownMailbox[];
+      } catch {
+        return [];
+      }
+    })(),
 
     apply(fn, ok) {
       try {
@@ -120,7 +146,7 @@ export const useMailbox = create<MailboxStore>((set, get) => {
         const need = client.setupNeeded();
         if (need) throw new Error(need);
         const r = await client.connect();
-        set({ connected: upsert(get().connected, r) });
+        connected(r);
         useApp.getState().toast(`${r.account.address} connected: ${r.messages.length} emails loaded (read-only)`);
       }),
 
@@ -133,10 +159,20 @@ export const useMailbox = create<MailboxStore>((set, get) => {
         useApp.getState().toast(`${m.account.address} refreshed: ${messages.length} emails`);
       }),
 
+    async restore() {
+      for (const k of get().known) {
+        const client = MAIL_PROVIDERS[k.provider];
+        if (!client?.restore || client.setupNeeded() || get().connected.some((c) => c.account.provider === k.provider && c.account.address === k.address)) continue;
+        const r = await client.restore().catch(() => null);
+        if (r && r.account.address === k.address) connected(r);
+      }
+    },
+
     disconnect: (accountId) =>
       busy(`disconnect:${accountId}`, async () => {
         const m = get().connected.find((x) => x.account.id === accountId);
         if (m) await MAIL_PROVIDERS[m.account.provider]!.disconnect(m.account);
+        if (m) remember(get().known.filter((k) => !(k.provider === m.account.provider && k.address === m.account.address)));
         set({ connected: get().connected.filter((x) => x.account.id !== accountId) });
         useApp.getState().toast("Disconnected. Its emails were removed from this tab.");
       }),
@@ -251,11 +287,19 @@ export const useMailbox = create<MailboxStore>((set, get) => {
   };
 });
 
-/** The analysed mailbox for every visible account, recomputed when data or decisions change. */
+let shared: { deps: unknown[]; view: MailboxView } | null = null;
+
+/** The analysed mailbox for every visible account, recomputed when data or decisions change (once, shared by every component). */
 export function useMailboxView(): MailboxView {
   const { state, imported, connected, calendars } = useMailbox();
   const prefs = useApp((s) => s.prefs);
   return useMemo(() => {
+    const deps = [state, imported, connected, calendars, prefs];
+    if (shared && shared.deps.every((d, i) => d === deps[i])) return shared.view;
+    const view = analyse();
+    shared = { deps, view };
+    return view;
+    function analyse() {
     const boxes = [...(prefs.showDemo ? [{ accounts: DEMO_MAILBOX.accounts, messages: DEMO_MAILBOX.messages }] : []), ...[...imported, ...connected].map((b) => ({ accounts: [b.account], messages: b.messages }))];
     const data: MailboxData = {
       user: { name: prefs.name, timezone: prefs.timezone, addresses: [...DEMO_MAILBOX.user.addresses, ...[...imported, ...connected].map((b) => b.account.address)] },
@@ -266,5 +310,6 @@ export function useMailboxView(): MailboxView {
     const external = [...(prefs.showDemo ? DEMO_EVENTS : []), ...calendars.flatMap((c) => c.events)];
     const merged = { ...state, events: [...state.events, ...external.filter((e) => !state.events.some((x) => x.id === e.id))] };
     return buildMailboxView(data, merged, { now: live ? new Date().toISOString() : DEMO_MAILBOX.demo_clock });
+    }
   }, [state, imported, connected, calendars, prefs]);
 }
