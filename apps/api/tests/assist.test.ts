@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { createApp } from "../src/app.js";
 import { aiClient } from "../src/services/ai.js";
+import { formatReply } from "../src/services/aiAssist.js";
 
 // The inbox assistant: the model summarises and drafts; the rules check its draft and add review reasons.
 let server: Server;
@@ -98,6 +99,24 @@ describe("POST /ai/assist", () => {
     expect((await r.json()).status).toBe("error");
   });
 
+  it("lays a one-line reply out as an email and returns the model's category opinion", async () => {
+    process.env.GEMINI_API_KEY = "k";
+    model({ reply: "Hi Arjun, thanks for the correction. We are keeping one ticket only. Regards, Riya", category: "urgent", category_reason: "the deadline is 20 October", automated: false });
+    const j = await (await post(request)).json();
+    expect(j.reply).toBe("Hi Arjun,\n\nthanks for the correction. We are keeping one ticket only.\n\nRegards,\nRiya");
+    expect(j.category).toBe("urgent");
+    expect(j.category_reason).toBe("the deadline is 20 October");
+  });
+
+  it("never drafts a reply to automated mail, even if the model wrote one", async () => {
+    process.env.GEMINI_API_KEY = "k";
+    model({ reply: "Hi AWS,\n\nThanks.\n\nRiya", category: "fyi", category_reason: "a routine service notice", automated: true });
+    const j = await (await post(request)).json();
+    expect(j.automated).toBe(true);
+    expect(j.reply).toBeNull();
+    expect(j.reply_status).toBe("none");
+  });
+
   it("validates the request shape", async () => {
     expect((await post({ ...request, messages: [] })).status).toBe(400);
     expect((await post({ ...request, extra: 1 })).status).toBe(400);
@@ -108,5 +127,17 @@ describe("without a database", () => {
   it("answers /runs with 503 instead of hanging", async () => {
     const r = await fetch(`${base}/runs`);
     expect(r.status).toBe(503);
+  });
+});
+
+describe("formatReply", () => {
+  it("keeps a reply that already has line breaks", () => {
+    expect(formatReply("Hi Meera,\n\nThat works.\n\nBest,\nRiya")).toBe("Hi Meera,\n\nThat works.\n\nBest,\nRiya");
+  });
+  it("splits greeting, body and sign-off without changing words", () => {
+    const out = formatReply("Hello Karan, could you share the final Q3 numbers? Please also confirm the owner. Thanks, Riya");
+    expect(out.split("\n\n")[0]).toBe("Hello Karan,");
+    expect(out.endsWith("Thanks,\nRiya")).toBe(true);
+    expect(out.replace(/\s+/g, " ")).toBe("Hello Karan, could you share the final Q3 numbers? Please also confirm the owner. Thanks, Riya");
   });
 });
