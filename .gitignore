@@ -14,3 +14,7 @@ coverage/
 /case-bank.json
 /Templates/
 /C16/
+
+# playwright output
+test-results/
+playwright-report/
