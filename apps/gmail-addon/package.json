@@ -1,0 +1,22 @@
+{
+  "name": "gmail-addon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "push": "node scripts/build.mjs && clasp push --force",
+    "test": "vitest run",
+    "lint": "eslint src tests"
+  },
+  "devDependencies": {
+    "@google/clasp": "2.4.2",
+    "@types/google-apps-script": "1.0.83",
+    "esbuild": "0.21.5",
+    "typescript": "5.9.3",
+    "vitest": "2.1.9"
+  },
+  "dependencies": {
+    "@c16/core": "workspace:^"
+  }
+}
