@@ -1,20 +1,25 @@
 import { create } from "zustand";
 import { FixtureError, type LintViolation } from "@c16/core";
-import { createRepository, LintRejected, type DecisionPatch, type Repository, type SavedRun } from "../repo";
+import { apiHealthy, createRepository, DEFAULT_REPO, LintRejected, type DecisionPatch, type RepoKind, type Repository, type SavedRun } from "../repo";
 
 export interface ImportError {
   title: string;
   issues: { path: string; message: string }[];
 }
 
+export type ApiStatus = "not used" | "waking" | "ready" | "offline";
+
 interface TriageState {
   repo: Repository;
+  apiStatus: ApiStatus;
+  notice: string | null;
   run: SavedRun | null;
   booted: boolean;
   busy: boolean;
   importError: ImportError | null;
   actionError: string | null;
   boot(): Promise<void>;
+  switchRepo(kind: RepoKind): Promise<void>;
   importFixture(input: unknown, source: string): Promise<boolean>;
   saveDraft(threadKey: string, body: string): Promise<LintViolation[] | null>;
   editDecision(emailId: string, patch: DecisionPatch): Promise<void>;
@@ -31,6 +36,7 @@ function toImportError(e: unknown): ImportError {
 }
 
 export const useTriage = create<TriageState>((set, get) => {
+  let booting = false;
   const act = async (fn: (run: SavedRun) => Promise<SavedRun>) => {
     const run = get().run;
     if (!run) return;
@@ -46,7 +52,9 @@ export const useTriage = create<TriageState>((set, get) => {
   };
 
   return {
-    repo: createRepository(),
+    repo: createRepository(DEFAULT_REPO),
+    apiStatus: DEFAULT_REPO === "api" ? "waking" : "not used",
+    notice: null,
     run: null,
     booted: false,
     busy: false,
@@ -54,14 +62,31 @@ export const useTriage = create<TriageState>((set, get) => {
     actionError: null,
 
     async boot() {
-      if (get().booted) return;
+      if (get().booted || booting) return;
+      booting = true;
+      if (get().repo.kind === "api") {
+        set({ apiStatus: "waking" });
+        if (await apiHealthy()) set({ apiStatus: "ready" });
+        else
+          set({
+            apiStatus: "offline",
+            repo: createRepository("local"),
+            notice: "The API did not answer, so this session is saved in this browser instead (labelled fallback). Switch back to the API once it is up.",
+          });
+      }
       try {
         set({ run: await get().repo.latest() });
       } catch (e) {
         set({ actionError: `Could not load the last saved run: ${(e as Error).message}` });
       } finally {
+        booting = false;
         set({ booted: true });
       }
+    },
+
+    async switchRepo(kind) {
+      set({ repo: createRepository(kind), run: null, booted: false, notice: null, apiStatus: kind === "api" ? "waking" : "not used", importError: null, actionError: null });
+      await get().boot();
     },
 
     async importFixture(input, source) {

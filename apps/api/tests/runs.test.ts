@@ -170,3 +170,10 @@ describe("drafts and previews", () => {
     expect(r.json.after_review.seeded_recovered).toBe(7);
   });
 });
+
+describe("empty database", () => {
+  it("latest is null before any import", async () => {
+    const r = await call("GET", "/runs/latest");
+    expect(r).toEqual({ status: 200, json: null });
+  });
+});

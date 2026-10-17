@@ -12,7 +12,7 @@ const nav = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-2.5 py-1.5 text-sm font-medium ${isActive ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"}`;
 
 export default function App() {
-  const { boot, booted, run, repo } = useTriage();
+  const { boot, booted, run, repo, apiStatus, notice, switchRepo } = useTriage();
   useEffect(() => {
     boot();
   }, [boot]);
@@ -39,14 +39,26 @@ export default function App() {
             </NavLink>
           </nav>
           <div className="ml-auto flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>{repo.kind === "api" ? "Saved to API" : "Saved in this browser"}</span>
+            <label className="flex items-center gap-1">
+              <span className="sr-only">Storage</span>
+              <select
+                value={repo.kind}
+                onChange={(e) => switchRepo(e.target.value as "api" | "local")}
+                className="rounded border border-slate-300 bg-white py-0.5 pl-1 pr-6 text-xs text-slate-700"
+                title="Where reviewed results are saved"
+              >
+                <option value="api">Saved to API (MongoDB)</option>
+                <option value="local">Saved in this browser</option>
+              </select>
+            </label>
             <PolicyBadge policy={run?.result.policy} />
           </div>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6">
+        {notice && <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{notice}</div>}
         {!booted ? (
-          <div className="text-sm text-slate-500">Loading…</div>
+          <div className="text-sm text-slate-500">{apiStatus === "waking" ? "Waking the API. The free hosting tier can take up to a minute…" : "Loading…"}</div>
         ) : (
           <Routes>
             <Route path="/" element={<ImportPage />} />
