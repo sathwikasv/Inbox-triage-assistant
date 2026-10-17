@@ -4,6 +4,8 @@ One inbox for Gmail, Outlook and Yahoo Mail. Every email is sorted into a catego
 
 Built for the Fynd × NMIMS case C16 (inbox triage and reply drafts). The plan, roles and timeline are in [C16_PLAN.md](./C16_PLAN.md).
 
+**Live:** https://triagedesk-fawn.vercel.app (Vercel: the web app plus the server under /api)
+
 ## What it does
 - **Unified inbox.** Accounts from several providers in one list with account filters, search across accounts, read/unread, star, attachments, conversation view, and Drafts / Sent / Archive / Spam.
 - **Categories.** Urgent · Requires action · To delegate · Meetings · Waiting for response · Follow-up · Important · FYI · Promotions · Spam or suspicious. Each shows its reason, and you can override it.
