@@ -99,8 +99,8 @@ describe("POST /classify (playground)", () => {
 
   it("uses the AI when no rule matches", async () => {
     process.env.GEMINI_API_KEY = "test-key";
-    fakeGemini(() => ({ results: [{ id: "P1", type: "blocker", confidence: 0.91, reason: "paused pending legal review" }] }));
-    const r = await post({ body: "The rollout is paused pending legal review." });
+    fakeGemini(() => ({ results: [{ id: "P1", type: "blocker", confidence: 0.91, reason: "the dashboard change may hide a fault" }] }));
+    const r = await post({ body: "The warehouse dashboard looks different this week." });
     expect(r.json.decision.purpose).toBe("blocker");
     expect(r.json.decision.ai).toMatchObject({ decided_by: "ai", rule_purpose: null });
   });

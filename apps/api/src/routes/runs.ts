@@ -1,10 +1,10 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { Types } from "mongoose";
-import { FixtureError, QUARANTINE, computeMetrics, lintDraft, type TriageResult } from "@c16/core";
+import { FixtureError, QUARANTINE, computeMetrics, lintDraft, needsApproval, type TriageResult } from "@c16/core";
 import { TriageRun } from "../models/TriageRun.js";
 import { Decision } from "../models/Decision.js";
 import { Draft } from "../models/Draft.js";
-import { ActionSchema, DecisionPatchSchema, DraftPutSchema, PreviewSchema, validateBody } from "../middleware/validate.js";
+import { ActionSchema, DecisionPatchSchema, DraftPutSchema, HandoffSchema, PreviewSchema, validateBody } from "../middleware/validate.js";
 import { audit, importRun, labelsFor, loadRun } from "../services/triage.js";
 
 export const runsRouter = Router();
@@ -90,9 +90,49 @@ runsRouter.put(
     if (!thread || thread.draft_mode === "none") return res.status(404).json({ error: `thread ${req.params.threadKey} does not take a reply` });
     const lint = lintDraft(req.body.body, thread);
     if (!lint.ok) return res.status(422).json({ error: "draft rejected by lint", violations: lint.violations });
-    const before = await Draft.findOneAndUpdate({ runId: req.params.id, threadKey: thread.thread_key }, { editedBody: req.body.body, editedAt: new Date(), approvedAt: null, approvedBy: null });
+    const before = await Draft.findOneAndUpdate({ runId: req.params.id, threadKey: thread.thread_key }, { editedBody: req.body.body, editedAt: new Date(), approvedAt: null, approvedBy: null, handoffAt: null, handoffHow: null, handoffBody: null, repliedAt: null });
     await TriageRun.updateOne({ _id: req.params.id }, { reviewed: false });
     await audit(req.params.id, { type: "edit_draft", threadKey: thread.thread_key, detail: `draft edited (${req.body.body.length} chars), lint clean${before?.approvedAt ? "; previous approval withdrawn" : ""}` });
+    return res.json(await loadRun(req.params.id));
+  }),
+);
+
+// POST /runs/:id/drafts/:threadKey/handoff: the reviewed reply leaves the tool for a person to send it
+// (copied, or downloaded as an unsent .eml). Permission control before send: it must pass the lint, and a
+// reply that states a date, makes a commitment or sits on an escalated thread needs an Approver first.
+runsRouter.post(
+  "/:id/drafts/:threadKey/handoff",
+  validateBody(HandoffSchema),
+  wrap(async (req, res) => {
+    const result = await snapshot(req.params.id);
+    if (!result) return res.status(404).json({ error: "run not found" });
+    const thread = result.threads.find((t) => t.thread_key === req.params.threadKey);
+    const draft = await Draft.findOne({ runId: req.params.id, threadKey: req.params.threadKey });
+    if (!thread || !draft || thread.draft_mode === "none") return res.status(404).json({ error: `thread ${req.params.threadKey} has no reply to hand off` });
+    if (req.header("x-role") === "viewer") return res.status(403).json({ error: "viewers cannot hand off replies" });
+    const body = draft.editedBody ?? draft.body;
+    const lint = lintDraft(body, thread);
+    if (!lint.ok) return res.status(422).json({ error: "the reply fails the lint; fix it first", violations: lint.violations });
+    const gate = needsApproval(body, thread);
+    if (gate.needed && !draft.approvedAt) return res.status(403).json({ error: `needs Approver sign-off first: ${gate.reasons.join(", ")}`, reasons: gate.reasons });
+    Object.assign(draft, { handoffAt: new Date(), handoffHow: req.body.how, handoffBody: body, repliedAt: null });
+    await draft.save();
+    await audit(req.params.id, { type: "handoff", threadKey: thread.thread_key, detail: `reply ${req.body.how === "eml" ? "downloaded as an unsent .eml draft" : "copied"} for a person to send; the tool sent nothing` });
+    return res.json(await loadRun(req.params.id));
+  }),
+);
+
+// POST /runs/:id/drafts/:threadKey/replied: a person confirms they sent the handed-off reply from their own mail app.
+runsRouter.post(
+  "/:id/drafts/:threadKey/replied",
+  wrap(async (req, res) => {
+    if (req.header("x-role") === "viewer") return res.status(403).json({ error: "viewers cannot mark replies" });
+    const draft = await Draft.findOne({ runId: req.params.id, threadKey: req.params.threadKey });
+    if (!draft) return res.status(404).json({ error: "no reply for this thread" });
+    if (!draft.handoffAt) return res.status(409).json({ error: "hand the reply off (copy or .eml) before marking it replied" });
+    draft.repliedAt = new Date();
+    await draft.save();
+    await audit(req.params.id, { type: "mark_replied", threadKey: req.params.threadKey, detail: "marked replied: sent by a person outside the tool" });
     return res.json(await loadRun(req.params.id));
   }),
 );
