@@ -61,7 +61,17 @@ export function EmailCard({ d, edited, activeQuote }: { d: Decision; edited?: bo
         <StatusChip status={d.status} />
         {d.action_needed ? <Chip tone="blue">action needed</Chip> : <Chip>no action</Chip>}
         {d.duplicate_of && <Chip tone="neutral">duplicate of {d.duplicate_of}</Chip>}
+        {d.ai && (
+          <Chip tone={d.ai.decided_by === "both" ? "green" : "violet"} title={`${d.ai.source}: ${d.ai.reason}`}>
+            AI {d.ai.decided_by === "both" ? "agrees" : d.ai.decided_by === "ai" ? "decided" : "overruled by rules"}: {d.ai.purpose.replace("_", " ")} {Math.round(d.ai.confidence * 100)}%
+          </Chip>
+        )}
       </div>
+      {d.review?.needed && (
+        <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+          <span className="font-semibold">Needs review:</span> {d.review.reason}. Use "Correct this decision" below if the type is wrong.
+        </div>
+      )}
 
       <dl className="mt-3 grid gap-1 text-xs text-slate-600 sm:grid-cols-[6rem_1fr]">
         <dt className="font-medium text-slate-500">Why {d.purpose.replace("_", " ")}</dt>

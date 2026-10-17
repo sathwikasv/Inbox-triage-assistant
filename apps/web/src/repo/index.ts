@@ -3,7 +3,7 @@ import { ApiRepository } from "./ApiRepository";
 import type { Repository } from "./Repository";
 
 export * from "./Repository";
-export { API_URL, apiHealthy } from "./ApiRepository";
+export { API_URL, apiHealthy, apiHealth, type ApiHealth } from "./ApiRepository";
 
 export type RepoKind = "local" | "api";
 

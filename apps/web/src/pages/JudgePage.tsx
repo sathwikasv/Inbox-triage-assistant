@@ -7,9 +7,9 @@ import { LABELS, labelsFor } from "../lib/starter";
 import { pct } from "../lib/format";
 
 const SHOW_ME: Record<number, { to: string; label: string }> = {
-  1: { to: "/thread/T-dup-ticket", label: "18 → 20 Oct correction" },
-  2: { to: "/thread/T-test-data", label: "E08 draft and lint" },
-  3: { to: "/thread/QUARANTINE", label: "E05 quarantine" },
+  1: { to: "/inbox/T-dup-ticket", label: "18 → 20 Oct correction" },
+  2: { to: "/inbox/T-test-data", label: "E08 draft and lint" },
+  3: { to: "/inbox/QUARANTINE", label: "E05 quarantine" },
 };
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -102,7 +102,7 @@ export default function JudgePage() {
                 <li key={s.email_id} className="grid gap-1 py-2 text-sm sm:grid-cols-[4rem_1fr_1.2fr]">
                   <span className="flex items-center gap-2">
                     <span className={s.recovered ? "text-emerald-600" : "text-rose-600"}>{s.recovered ? "✓" : "✗"}</span>
-                    <Link to={`/thread/${encodeURIComponent(byId.get(s.email_id)?.thread_key ?? "")}#${s.email_id}`} className="font-mono font-semibold text-indigo-700 hover:underline">
+                    <Link to={`/inbox/${encodeURIComponent(byId.get(s.email_id)?.thread_key ?? "")}#${s.email_id}`} className="font-mono font-semibold text-indigo-700 hover:underline">
                       {s.email_id}
                     </Link>
                   </span>

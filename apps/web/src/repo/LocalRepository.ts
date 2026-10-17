@@ -1,6 +1,6 @@
 import { runTriage, lintDraft, fixtureHash, QUARANTINE, type TriageResult } from "@c16/core";
 import { labelsFor } from "../lib/starter";
-import { EDITABLE_DECISION_FIELDS, LintRejected, type AuditEvent, type DecisionPatch, type Repository, type SavedRun } from "./Repository";
+import { EDITABLE_DECISION_FIELDS, LintRejected, type AuditEvent, type ClassifyResult, type DecisionPatch, type Repository, type SavedRun, type ThreadAction } from "./Repository";
 
 const KEY = "c16.runs.v1";
 const LATEST = "c16.latest.v1";
@@ -127,5 +127,27 @@ export class LocalRepository implements Repository {
     const at = now();
     const n = Object.keys(run.edits).length;
     return this.write(this.log({ ...run, reviewed: true, savedAt: at }, { type: "save", detail: `reviewed result saved: ${n} edited draft(s), ${Object.keys(run.decisionEdits).length} edited decision(s)` }));
+  }
+
+  async act(runId: string, threadKey: string, action: ThreadAction, opts: { to?: string; note?: string } = {}) {
+    const run = this.must(runId);
+    const t = run.result.threads.find((x) => x.thread_key === threadKey);
+    if (!t) throw new Error(`thread ${threadKey} not found`);
+    if (action === "archive" && t.thread_key === QUARANTINE) throw new Error("quarantined mail is never archived; escalate it");
+    const note = opts.note ? `: ${opts.note}` : "";
+    const detail =
+      action === "escalate"
+        ? `escalated to ${opts.to ?? "the team lead"}${note} (recorded; no message sent)`
+        : action === "watch"
+          ? `watching${t.watch_date ? ` until ${t.watch_date}` : ""}${note}`
+          : `marked for archive (${t.email_ids.length} email(s)); preview only, mailbox unchanged`;
+    return this.write(this.log(run, { type: action, thread_key: threadKey, detail }));
+  }
+
+  async classify(subject: string, body: string): Promise<ClassifyResult> {
+    // Browser-only mode has no AI key: rules only.
+    const email = { email_id: "P1", subject: subject || "(no subject)", body, received_at: new Date().toISOString() };
+    const r = runTriage({ case_id: "C16", records: { emails: [email], policy: { draft_only: true, auto_send: false } } });
+    return { decision: r.decisions[0], thread: r.threads[0], draft: r.drafts[0] ?? null, ai: { status: "disabled" } };
   }
 }

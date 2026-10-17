@@ -45,7 +45,7 @@ export default function ReviewPage() {
             const ok = edit ? edit.lint_ok : draft?.lint_ok;
             return (
               <li key={t.thread_key} className="flex flex-wrap items-center gap-2 py-2 text-sm">
-                <Link to={`/thread/${encodeURIComponent(t.thread_key)}`} className="font-medium text-indigo-700 hover:underline">
+                <Link to={`/inbox/${encodeURIComponent(t.thread_key)}`} className="font-medium text-indigo-700 hover:underline">
                   {t.title}
                 </Link>
                 <span className="font-mono text-xs text-slate-500">{t.thread_key}</span>
