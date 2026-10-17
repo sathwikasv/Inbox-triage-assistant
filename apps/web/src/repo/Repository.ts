@@ -1,6 +1,21 @@
-import type { Decision, LintViolation, TriageResult } from "@c16/core";
+import type { Decision, Draft, LintViolation, ThreadFacts, TriageResult } from "@c16/core";
 
-export type AuditType = "import" | "reimport" | "edit_draft" | "edit_decision" | "preview_label" | "preview_archive" | "save" | "quarantine";
+export type AuditType = "import" | "reimport" | "edit_draft" | "edit_decision" | "preview_label" | "preview_archive" | "save" | "quarantine" | "escalate" | "watch" | "archive";
+export type ThreadAction = "escalate" | "watch" | "archive";
+
+/** Optional AI pass that ran at import (API only). */
+export interface AiStatus {
+  status: "ok" | "disabled" | "error" | string;
+  model?: string;
+  error?: string;
+}
+
+export interface ClassifyResult {
+  decision: Decision;
+  thread: ThreadFacts;
+  draft: Draft | null;
+  ai: AiStatus;
+}
 
 export interface AuditEvent {
   at: string;
@@ -33,6 +48,7 @@ export interface SavedRun {
   decisionEdits: Record<string, DecisionPatch>; // email_id → changed fields
   audit: AuditEvent[];
   storage: "local" | "api";
+  ai?: AiStatus;
 }
 
 export class LintRejected extends Error {
@@ -50,4 +66,6 @@ export interface Repository {
   editDecision(runId: string, emailId: string, patch: DecisionPatch): Promise<SavedRun>;
   preview(runId: string, emailId: string, action: "label" | "archive"): Promise<SavedRun>;
   markReviewed(runId: string): Promise<SavedRun>;
+  act(runId: string, threadKey: string, action: ThreadAction, opts?: { to?: string; note?: string }): Promise<SavedRun>;
+  classify(subject: string, body: string): Promise<ClassifyResult>;
 }

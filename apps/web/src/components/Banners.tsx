@@ -23,7 +23,7 @@ export function QuarantineBanner({ quarantined, policy }: { quarantined: Decisio
       <ul className="mt-1 list-disc pl-5">
         {quarantined.map((d) => (
           <li key={d.email_id}>
-            <Link className="font-medium underline" to={`/thread/${encodeURIComponent(d.thread_key)}#${d.email_id}`}>
+            <Link className="font-medium underline" to={`/inbox/${encodeURIComponent(d.thread_key)}#${d.email_id}`}>
               {d.email_id}
             </Link>{" "}
             {d.explain.purpose}. No task, draft or archive was created.

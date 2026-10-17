@@ -1,4 +1,4 @@
-import { LintRejected, type DecisionPatch, type Repository, type SavedRun } from "./Repository";
+import { LintRejected, type ClassifyResult, type DecisionPatch, type Repository, type SavedRun, type ThreadAction } from "./Repository";
 
 export const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:4000";
 
@@ -24,7 +24,26 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   throw new ApiError(json.error ?? `HTTP ${res.status}`, res.status, json.issues);
 }
 
-/** Waits for the API (Render's free tier can take ~50 s to wake). Resolves false if it never answers. */
+export interface ApiHealth {
+  ok: boolean;
+  ai?: { enabled: boolean; model: string };
+}
+
+/** Waits for the API (Render's free tier can take ~50 s to wake). Resolves null if it never answers. */
+export async function apiHealth(timeoutMs = 70_000): Promise<ApiHealth | null> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_URL}/health`, { signal: ctl.signal });
+    const json = await res.json();
+    return res.ok && json.ok === true && json.policy?.auto_send === false ? json : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function apiHealthy(timeoutMs = 70_000): Promise<boolean> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
@@ -88,5 +107,13 @@ export class ApiRepository implements Repository {
 
   markReviewed(runId: string) {
     return call<SavedRun>("POST", `/runs/${encodeURIComponent(runId)}/save`);
+  }
+
+  act(runId: string, threadKey: string, action: ThreadAction, opts: { to?: string; note?: string } = {}) {
+    return call<SavedRun>("POST", `/runs/${encodeURIComponent(runId)}/actions`, { thread_key: threadKey, action, ...opts });
+  }
+
+  classify(subject: string, body: string) {
+    return call<ClassifyResult>("POST", "/classify", subject ? { subject, body } : { body });
   }
 }

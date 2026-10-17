@@ -126,8 +126,8 @@ export default function ImportPage() {
               ))}
             </ul>
           )}
-          <Link to="/triage" className="mt-4 inline-block rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
-            Open triage →
+          <Link to="/inbox" className="mt-4 inline-block rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
+            Open inbox →
           </Link>
         </section>
       )}
