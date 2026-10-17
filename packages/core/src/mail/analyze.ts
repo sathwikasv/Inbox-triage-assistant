@@ -153,6 +153,9 @@ function insightFor(m: MailMessage, d: Decision, t: ThreadFacts, ctx: Ctx, key: 
     next = "No action needed";
   }
 
+  // A detector (phishing, promotion, scheduling) decided the category, so "no type rule matched" is not a doubt.
+  if (phishing.length || category === "promotions" || category === "meetings") flags.splice(0, flags.length, ...flags.filter((x) => x !== "needs_review"));
+
   const secondary = new Set<Category>();
   if (category !== "to_delegate" && d.action_needed && t.owner === null) secondary.add("to_delegate");
   if (starred && category !== "important") secondary.add("important");

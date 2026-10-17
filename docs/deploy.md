@@ -13,7 +13,7 @@ Deploy in this order: database → API → frontend → back to the API to set C
 
 ## 2. API on Render (10 min)
 1. Render → **New → Blueprint** → connect `sathwikasv/Inbox-triage-assistant`. It reads `render.yaml` (Docker, `apps/api/Dockerfile`, health check `/health`, deploys from `main`).
-2. When asked, set `MONGODB_URI` (from step 1) and `CORS_ORIGIN` (use `http://localhost:5173` for now).
+2. When asked, set `MONGODB_URI` (from step 1), `CORS_ORIGIN` and `WEB_ORIGIN` (use `http://localhost:5173` for now). `SESSION_SECRET` is generated. For Yahoo, also set `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET` and `YAHOO_REDIRECT_URI=https://<render-url>/providers/yahoo/callback`.
 3. Wait for the deploy, then check:
    ```
    curl https://<render-url>/health
@@ -25,14 +25,15 @@ Deploy in this order: database → API → frontend → back to the API to set C
 ## 3. Frontend on Amplify Hosting (10 min)
 1. Amplify console → **Create new app → Host web app** → GitHub → this repo, branch `main`.
 2. Tick **"My app is a monorepo"** and set the app root to `apps/web`. Amplify picks up `amplify.yml` from the repo root.
-3. Environment variables: `VITE_REPO=api`, `VITE_API_URL=https://<render-url>` (no trailing slash).
+3. Environment variables: `VITE_API_URL=https://<render-url>` (no trailing slash), plus `VITE_GOOGLE_CLIENT_ID` and `VITE_MS_CLIENT_ID` when those providers are set up ([providers.md](providers.md)). They can also be entered later in the app under Settings → Integrations.
 4. Hosting → **Rewrites and redirects** → add the single-page-app rule so `/thread/...` links work on reload:
    - Source: `</^[^.]+$|\.(?!(css|js|json|png|svg|ico)$)([^.]+$)/>`
    - Target: `/index.html`, Type: `200 (Rewrite)`
 5. Deploy and open the Amplify URL.
 
 ## 4. Close the loop
-1. Render → Environment → set `CORS_ORIGIN` to the Amplify URL (comma-separate if you also want localhost). Save; Render redeploys.
+1. Render → Environment → set `CORS_ORIGIN` and `WEB_ORIGIN` to the Amplify URL (comma-separate `CORS_ORIGIN` if you also want localhost). Save; Render redeploys.
+1. Add the Amplify URL as an authorised JavaScript origin (Google) and a single-page-application redirect URI (Microsoft).
 2. From the hosted URL, on a phone too: Import → Triage → edit a draft → Save → reload. The header must say "Saved to API (MongoDB)".
 3. Put both URLs in `README.md` under **Hosted**.
 
@@ -47,6 +48,6 @@ pnpm --filter @c16/core build
 pnpm dev:db                                   # terminal 1: local MongoDB on 27017
 cp apps/api/.env.example apps/api/.env        # already points at the local DB
 pnpm dev:api                                  # terminal 2: http://localhost:4000/health
-echo "VITE_REPO=api" > apps/web/.env.local
+echo "VITE_API_URL=http://localhost:4000" > apps/web/.env.local
 pnpm dev:web                                  # terminal 3: http://localhost:5173
 ```
