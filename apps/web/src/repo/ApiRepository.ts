@@ -1,3 +1,4 @@
+import { FixtureError, loadInput } from "@c16/core";
 import { LintRejected, type ClassifyResult, type DecisionPatch, type Repository, type Role, type SavedRun, type ThreadAction } from "./Repository";
 
 export const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:4000";
@@ -63,14 +64,13 @@ export class ApiRepository implements Repository {
   readonly kind = "api" as const;
 
   importFixture(input: unknown, source: string) {
-    // Raw text is parsed here; malformed JSON gets the same readable error shape as schema errors.
-    let fixture = input;
-    if (typeof input === "string") {
-      try {
-        fixture = JSON.parse(input);
-      } catch (e) {
-        return Promise.reject(new ApiError("invalid fixture", 400, [{ path: "(file)", message: `not valid JSON (${(e as Error).message})` }]));
-      }
+    // Raw JSON or CSV text is turned into the fixture object here; bad files get the same readable errors as schema errors.
+    let fixture: unknown;
+    try {
+      fixture = loadInput(input);
+    } catch (e) {
+      const issues = e instanceof FixtureError ? e.issues : [{ path: "(file)", message: (e as Error).message }];
+      return Promise.reject(new ApiError("invalid fixture", 400, issues));
     }
     return call<SavedRun>("POST", "/runs", { fixture, source });
   }
