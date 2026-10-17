@@ -5,7 +5,8 @@ import type { EventKind, MailMessage } from "./types.js";
 const first = (re: RegExp, text: string) => re.exec(text)?.[0] ?? null;
 
 /** Newsletters and promotions: ordinary marketing, never treated as spam on that basis alone. */
-export function detectPromotion(m: Pick<MailMessage, "from" | "subject" | "body" | "list_unsubscribe">): string | null {
+export function detectPromotion(m: Pick<MailMessage, "from" | "subject" | "body" | "list_unsubscribe" | "labels">): string | null {
+  if (m.labels?.includes("CATEGORY_PROMOTIONS")) return "Gmail files it under Promotions";
   if (m.list_unsubscribe) return "has a List-Unsubscribe header";
   const unsub = first(/\bunsubscribe\b|\bmanage (your )?(email )?preferences\b|\bview (this email )?in (your )?browser\b/i, m.body);
   if (unsub) return `contains "${unsub}"`;
@@ -78,4 +79,32 @@ export function detectDuration(text: string): number | null {
 /** Deadlines that cannot be dated without asking: "end of day", "ASAP", "early next week". */
 export function detectVagueDeadline(text: string): string | null {
   return first(/\b(by )?(end of (the )?(day|week|month)|eod|eow|cob|close of business|asap|as soon as possible|soon|later this week|early next week|sometime next week)\b/i, text);
+}
+
+const NO_REPLY = /^(no[-_.]?reply|do[-_.]?not[-_.]?reply|donotreply|notifications?|notify|alerts?|mailer[-_.]?daemon|postmaster|bounces?|automated|auto[-_.]?(confirm|reply|mailer)|system|messages?[-_.]noreply)([-_.+][^@]*)?@/i;
+const AUTOMATED_TEXT = /\b(this is an automated (message|e-?mail|notification)|this (e-?mail|message|notification) was (sent|generated) automatically|(please )?do not reply( directly)? to this (e-?mail|message)|this mailbox is not monitored|replies to this (e-?mail|message) (are|will) not)\b/i;
+const SECURITY = /\b(security (alert|notification|notice|checkup)|new sign-?in|signed in|sign-?in (attempt|alert)|new device|password (was )?(changed|reset)|2-step|two-factor|verification code|one-time (code|password)|suspicious (activity|sign)|unusual activity|account (data|access|recovery)|shared some .{0,40}data|data breach|login (alert|attempt))\b/i;
+
+/** A sender with nobody to answer: a no-reply address, a system notice or a Gmail "Updates/Social/Forums" mail. */
+export function isNoReply(email: string) {
+  return NO_REPLY.test(email);
+}
+
+/** Automated mail (notifications, account and security notices). Requests in it are not work for the reader. */
+export function detectAutomated(m: Pick<MailMessage, "from" | "subject" | "body" | "labels">): { kind: "security" | "notification"; why: string } | null {
+  const domain = m.from.email.split("@")[1] ?? "";
+  const labels = m.labels ?? [];
+  const why = NO_REPLY.test(m.from.email)
+    ? `sent from a no-reply address at ${domain}`
+    : labels.includes("CATEGORY_UPDATES")
+      ? "Gmail files it under Updates"
+      : labels.includes("CATEGORY_SOCIAL")
+        ? "Gmail files it under Social"
+        : labels.includes("CATEGORY_FORUMS")
+          ? "Gmail files it under Forums"
+          : AUTOMATED_TEXT.test(m.body)
+            ? `the email says it was sent automatically`
+            : null;
+  if (!why) return null;
+  return { kind: SECURITY.test(`${m.subject}\n${m.body.slice(0, 1500)}`) ? "security" : "notification", why };
 }
