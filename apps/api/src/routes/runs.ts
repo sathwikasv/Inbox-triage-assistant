@@ -90,9 +90,30 @@ runsRouter.put(
     if (!thread || thread.draft_mode === "none") return res.status(404).json({ error: `thread ${req.params.threadKey} does not take a reply` });
     const lint = lintDraft(req.body.body, thread);
     if (!lint.ok) return res.status(422).json({ error: "draft rejected by lint", violations: lint.violations });
-    await Draft.updateOne({ runId: req.params.id, threadKey: thread.thread_key }, { editedBody: req.body.body, editedAt: new Date() });
+    const before = await Draft.findOneAndUpdate({ runId: req.params.id, threadKey: thread.thread_key }, { editedBody: req.body.body, editedAt: new Date(), approvedAt: null, approvedBy: null });
     await TriageRun.updateOne({ _id: req.params.id }, { reviewed: false });
-    await audit(req.params.id, { type: "edit_draft", threadKey: thread.thread_key, detail: `draft edited (${req.body.body.length} chars), lint clean` });
+    await audit(req.params.id, { type: "edit_draft", threadKey: thread.thread_key, detail: `draft edited (${req.body.body.length} chars), lint clean${before?.approvedAt ? "; previous approval withdrawn" : ""}` });
+    return res.json(await loadRun(req.params.id));
+  }),
+);
+
+// POST /runs/:id/drafts/:threadKey/approve: Approver sign-off. Role comes from the x-role header in this demo
+// (no auth yet); the draft must still pass the lint. Approval never sends anything.
+runsRouter.post(
+  "/:id/drafts/:threadKey/approve",
+  wrap(async (req, res) => {
+    if (req.header("x-role") !== "approver") return res.status(403).json({ error: "only an Approver can sign off drafts" });
+    const result = await snapshot(req.params.id);
+    if (!result) return res.status(404).json({ error: "run not found" });
+    const thread = result.threads.find((t) => t.thread_key === req.params.threadKey);
+    const draft = await Draft.findOne({ runId: req.params.id, threadKey: req.params.threadKey });
+    if (!thread || !draft || thread.draft_mode === "none") return res.status(404).json({ error: `thread ${req.params.threadKey} has no draft to approve` });
+    const lint = lintDraft(draft.editedBody ?? draft.body, thread);
+    if (!lint.ok) return res.status(422).json({ error: "the draft fails the lint; fix it before approval", violations: lint.violations });
+    draft.approvedAt = new Date();
+    draft.approvedBy = "approver";
+    await draft.save();
+    await audit(req.params.id, { type: "approve_draft", threadKey: thread.thread_key, actor: "approver", detail: "draft approved by Approver; still draft-only, nothing sent" });
     return res.json(await loadRun(req.params.id));
   }),
 );

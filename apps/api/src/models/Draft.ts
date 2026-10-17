@@ -10,6 +10,8 @@ const DraftSchema = new Schema(
     violations: { type: [Schema.Types.Mixed], default: [] },
     editedBody: { type: String, default: null }, // reviewer version; only stored when lint is clean
     editedAt: { type: Date, default: null },
+    approvedAt: { type: Date, default: null }, // Approver sign-off on the current body; cleared when the draft is edited
+    approvedBy: { type: String, default: null },
   },
   { timestamps: true, collection: "drafts" },
 );

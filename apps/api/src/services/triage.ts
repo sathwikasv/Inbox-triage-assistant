@@ -44,6 +44,7 @@ export async function loadRun(id: string, reused = false) {
     audit: events.map((e) => ({ at: new Date(e.at).toISOString(), actor: e.actor, type: e.type, email_id: e.emailId ?? undefined, thread_key: e.threadKey ?? undefined, detail: e.detail })),
     storage: "api" as const,
     ai: (run.ai ?? { status: "disabled" }) as { status: string; model?: string; error?: string; ms?: number },
+    approvals: Object.fromEntries(drafts.filter((d) => d.approvedAt).map((d) => [d.threadKey, { by: d.approvedBy ?? "approver", at: new Date(d.approvedAt!).toISOString() }])),
   };
 }
 
