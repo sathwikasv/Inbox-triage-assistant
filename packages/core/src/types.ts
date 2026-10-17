@@ -146,7 +146,7 @@ export interface Metrics {
   remaining_accuracy: number; // share of non-seeded decisions that match the labels
   thread_pair_agreement: number; // pairwise same-thread agreement with the labels
   mismatches: { email_id: string; field: string; expected: unknown; actual: unknown }[];
-  checks: { id: 1 | 2 | 3; passed: boolean; evidence: string }[];
+  checks: { id: 1 | 2 | 3; title: string; passed: boolean | null; evidence: string }[]; // null = not applicable to this input
 }
 
 export interface TriageResult {
