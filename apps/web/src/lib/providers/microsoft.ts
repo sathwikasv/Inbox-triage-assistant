@@ -1,6 +1,6 @@
 import type { AccountInfo, PublicClientApplication } from "@azure/msal-browser";
 import type { Address, CalendarEvent, MailAccount, MailMessage } from "@c16/core";
-import { ProviderError, htmlToText, isoWithOffset, setting, type CalendarProviderClient, type MailProviderClient, type OutgoingReply } from "./types";
+import { ProviderError, htmlToText, isoWithOffset, keepHtml, setting, tidyText, type CalendarProviderClient, type MailProviderClient, type OutgoingReply } from "./types";
 
 // Outlook mail and calendar through Microsoft Graph, signed in with MSAL (OAuth 2.0 auth code + PKCE).
 // Tokens are kept in memory only (cacheLocation "memoryStorage"). Each permission is asked for when needed.
@@ -42,7 +42,7 @@ async function token(scopes: readonly string[]): Promise<string> {
 
 async function graph<T>(scopes: readonly string[], path: string, init: RequestInit = {}): Promise<T> {
   const t = await token(scopes);
-  const res = await fetch(`${GRAPH}${path}`, { ...init, headers: { Authorization: `Bearer ${t}`, Prefer: 'outlook.body-content-type="text"', ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers } });
+  const res = await fetch(`${GRAPH}${path}`, { ...init, headers: { Authorization: `Bearer ${t}`, ...(init.body ? { "Content-Type": "application/json" } : {}), ...init.headers } });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
     throw new ProviderError("outlook", `Microsoft Graph ${res.status}: ${body.error?.message ?? res.statusText}`);
@@ -87,7 +87,8 @@ async function fetchMessages(account: MailAccount): Promise<MailMessage[]> {
     to: (m.toRecipients ?? []).map(addr),
     cc: (m.ccRecipients ?? []).map(addr),
     subject: m.subject || "(no subject)",
-    body: ((m.body?.contentType === "html" ? htmlToText(m.body.content) : m.body?.content) || m.bodyPreview || "(empty message)").slice(0, 8000),
+    body: ((m.body?.contentType === "html" ? htmlToText(m.body.content) : tidyText(m.body?.content ?? "")) || m.bodyPreview || "(empty message)").slice(0, 8000),
+    html: m.body?.contentType === "html" ? keepHtml(m.body.content) : undefined,
     received_at: isoWithOffset(Date.parse(m.receivedDateTime)),
     direction,
     read: m.isRead,

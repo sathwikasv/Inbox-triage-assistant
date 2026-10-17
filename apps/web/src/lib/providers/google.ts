@@ -1,5 +1,5 @@
 import type { Address, CalendarEvent, MailAccount, MailMessage } from "@c16/core";
-import { ProviderError, htmlToText, isoWithOffset, setting, type CalendarProviderClient, type MailProviderClient, type OutgoingReply } from "./types";
+import { ProviderError, htmlToText, isoWithOffset, keepHtml, setting, tidyText, type CalendarProviderClient, type MailProviderClient, type OutgoingReply } from "./types";
 
 // Gmail and Google Calendar through Google Identity Services (OAuth 2.0 token model).
 // Access tokens live in memory for this tab only: never in storage, never sent to our server.
@@ -125,7 +125,9 @@ async function fetchMessages(account: MailAccount, max = 30): Promise<MailMessag
       to: parseAddresses(h("To")),
       cc: parseAddresses(h("Cc")),
       subject: h("Subject") || "(no subject)",
-      body: (text || htmlToText(html) || g.snippet || "(empty message)").slice(0, 8000),
+      body: ((text && tidyText(text)) || (html && htmlToText(html)) || g.snippet || "(empty message)").slice(0, 8000),
+      html: keepHtml(html),
+      labels: g.labelIds ?? [],
       received_at: isoWithOffset(Number(g.internalDate)),
       direction: (g.labelIds ?? []).includes("SENT") ? "outbound" : "inbound",
       read: !(g.labelIds ?? []).includes("UNREAD"),
