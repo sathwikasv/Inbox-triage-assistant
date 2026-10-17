@@ -241,7 +241,8 @@ export function buildMailboxView(data: MailboxData, state: MailboxState = EMPTY_
     list.sort((a, b) => Date.parse(a.received_at) - Date.parse(b.received_at));
     const inbound = list.filter((m) => m.direction === "inbound");
     const ins = inbound.map((m) => insights[m.id]).filter(Boolean);
-    const category = ins.some((i) => i.category === "spam") ? "spam" : (PRESSING.find((c) => ins.some((i) => i.category === c)) ?? "fyi");
+    const last0 = list.at(-1)!;
+    const category: Category = ins.some((i) => i.category === "spam") ? "spam" : (PRESSING.find((c) => ins.some((i) => i.category === c)) ?? (last0.direction === "outbound" ? "waiting" : "fyi"));
     const priority = ins.reduce<Priority>((p, i) => (RANK[i.priority] < RANK[p] ? i.priority : p), "low");
     const last = list.at(-1)!;
     const facts = factsByKey.get(key) ?? null;

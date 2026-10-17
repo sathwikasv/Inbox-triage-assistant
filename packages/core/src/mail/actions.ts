@@ -215,6 +215,7 @@ export function sendCheck(view: MailboxView, s: MailboxState, threadKey: string,
     const gate = needsApproval(d.body, th.facts);
     if (gate.needed && !d.approved_at) blockers.push(`needs Approver sign-off: ${gate.reasons.join(", ")}`);
   }
+  if (acc?.mode === "import") blockers.push("imported files cannot send; connect the mailbox to reply from it");
   return { ok: blockers.length === 0, blockers, confirm: d ? sendRisks(d.body) : [], simulated: acc?.mode !== "connected" };
 }
 

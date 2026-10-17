@@ -26,13 +26,31 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * Dates mentioned in the fresh text, resolved against the email's own received_at and timezone
  * ("Due 18 October" sent on 16 Oct 2026 IST → 2026-10-18; "tomorrow" → the next IST day).
  */
+/**
+ * chrono reads "22 October 3-4 PM" as "October 3-4". Writing "22 October from 3-4 PM" fixes that; the
+ * inserted text is tracked so every mention still points at the original sentence.
+ */
+const DATE_THEN_RANGE = /(\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?,?)(\s+)(?=\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*[-\u2013]\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b)/gi;
+
+function normalizeRanges(text: string): { text: string; toOriginal: (i: number) => number } {
+  const inserts: number[] = []; // positions (in the normalised text) where " from" was added
+  let added = 0;
+  const out = text.replace(DATE_THEN_RANGE, (_m, date: string, space: string, offset: number) => {
+    inserts.push(offset + added + date.length);
+    added += 5;
+    return `${date} from${space}`;
+  });
+  return { text: out, toOriginal: (i) => i - inserts.filter((p) => p < i).length * 5 };
+}
+
 export function extractDates(text: string, receivedAt: string | null): DateMention[] {
   const ref = receivedAt
     ? { instant: new Date(receivedAt), timezone: offsetMinutes(receivedAt) }
     : { instant: new Date(Date.UTC(2000, 0, 1)), timezone: 0 };
   const out: DateMention[] = [];
-  for (const r of chrono.parse(text, ref, { forwardDate: true })) {
-    const sentence = sentenceAt(text, r.index);
+  const norm = normalizeRanges(text);
+  for (const r of chrono.parse(norm.text, ref, { forwardDate: true })) {
+    const sentence = sentenceAt(text, norm.toOriginal(r.index));
     const relative = RELATIVE.test(r.text);
     const anchored = receivedAt !== null || (r.start.isCertain("year") && !relative);
     const date = anchored
