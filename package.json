@@ -3,6 +3,8 @@
   "private": true,
   "packageManager": "pnpm@9.12.0",
   "scripts": {
+    "dev": "pnpm --filter @c16/core build && pnpm --filter web --filter api --parallel run dev",
+    "check:env": "node scripts/check-env.mjs",
     "dev:db": "pnpm --filter api dev:db",
     "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter api dev",

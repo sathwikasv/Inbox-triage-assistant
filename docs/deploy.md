@@ -48,6 +48,6 @@ pnpm --filter @c16/core build
 pnpm dev:db                                   # terminal 1: local MongoDB on 27017
 cp apps/api/.env.example apps/api/.env        # already points at the local DB
 pnpm dev:api                                  # terminal 2: http://localhost:4000/health
-echo "VITE_API_URL=http://localhost:4000" > apps/web/.env.local
+cp .env.example .env                          # repo root; fill in VITE_API_URL=http://localhost:4000 and any keys
 pnpm dev:web                                  # terminal 3: http://localhost:5173
 ```

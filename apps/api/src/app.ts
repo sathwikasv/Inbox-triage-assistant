@@ -21,7 +21,7 @@ export function createApp() {
   app.get("/health", (_req, res) =>
     res.json({ ok: true, db: mongoose.connection.readyState === 1 ? "connected" : "disconnected", policy: POLICY, ai: { enabled: aiEnabled(), model: aiModel() } }),
   );
-  app.use("/runs", runsRouter);
+  app.use("/runs", (_req, res, next) => (mongoose.connection.readyState === 1 ? next() : res.status(503).json({ error: "the case-evaluation database is not configured (MONGODB_URI)" })), runsRouter);
   app.use("/classify", classifyRouter);
   app.use("/providers/yahoo", yahooRouter);
   app.use("/ai", aiRouter);
