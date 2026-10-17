@@ -1,5 +1,5 @@
 // Accuracy report: rules only vs Gemini only vs hybrid, per email set. Needs GEMINI_API_KEY (apps/api/.env).
-// Run: pnpm --filter api build && pnpm --filter api eval:ai   → prints a table and writes docs/accuracy.md
+// Run: pnpm --filter api build && pnpm --filter api eval:ai   → prints a table and writes docs/accuracy-ai.md
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { runTriage } from "@c16/core";
 import { classifyEmails, aiModel } from "../dist/services/ai.js";
@@ -13,7 +13,8 @@ const labels = new Map(read("data/labels/C16_labels.json").labels.map((l) => [l.
 const sets = {
   "Fixture E01–E12": fixture.map((e) => ({ id: e.email_id, body: e.body, purpose: labels.get(e.email_id) })),
   "Robustness (rules tuned on it)": read("packages/core/tests/fixtures/robustness.json").emails,
-  "Held-out (never tuned on)": read("packages/core/tests/fixtures/heldout.json").emails,
+  "Dev set v1 (seen while tuning)": read("packages/core/tests/fixtures/heldout.json").emails,
+  "Held-out v2 (never tuned on)": read("packages/core/tests/fixtures/heldout_v2.json").emails,
 };
 
 const one = (e, ai) =>
@@ -54,5 +55,5 @@ Hybrid = rules decide when a rule matches; Gemini decides when none does; disagr
 |---|---|---|---|---|
 ${misses.join("\n") || "| – | – | – | – | none |"}
 `;
-writeFileSync(new URL("docs/accuracy.md", root), md);
+writeFileSync(new URL("docs/accuracy-ai.md", root), md);
 console.log(md);
