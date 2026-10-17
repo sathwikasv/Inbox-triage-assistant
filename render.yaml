@@ -17,5 +17,15 @@ services:
         sync: false
       - key: GEMINI_API_KEY # optional; rules only when empty
         sync: false
+      - key: WEB_ORIGIN # the Amplify URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: YAHOO_CLIENT_ID
+        sync: false
+      - key: YAHOO_CLIENT_SECRET
+        sync: false
+      - key: YAHOO_REDIRECT_URI # https://<render-url>/providers/yahoo/callback
+        sync: false
       - key: GEMINI_MODEL
         value: gemini-3.5-flash-lite

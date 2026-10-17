@@ -5,12 +5,17 @@ import mongoose from "mongoose";
 import { POLICY } from "@c16/core";
 import { runsRouter } from "./routes/runs.js";
 import { classifyRouter } from "./routes/classify.js";
+import { yahooRouter } from "./routes/yahoo.js";
+import { aiRouter } from "./routes/ai.js";
 import { aiEnabled, aiModel } from "./services/ai.js";
 
 export function createApp() {
   const app = express();
   app.use(helmet());
-  app.use(cors({ origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()) : "*" }));
+  app.set("trust proxy", 1); // Render terminates TLS; needed to mark the session cookie Secure
+  // Credentials (the Yahoo session cookie) require an explicit origin list, never "*".
+  const origins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()) : null;
+  app.use(cors(origins ? { origin: origins, credentials: true } : { origin: "*" }));
   app.use(express.json({ limit: "2mb" }));
 
   app.get("/health", (_req, res) =>
@@ -18,6 +23,8 @@ export function createApp() {
   );
   app.use("/runs", runsRouter);
   app.use("/classify", classifyRouter);
+  app.use("/providers/yahoo", yahooRouter);
+  app.use("/ai", aiRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "not found" }));
   // Malformed JSON bodies and unexpected errors come back as JSON, never as an HTML stack trace.
