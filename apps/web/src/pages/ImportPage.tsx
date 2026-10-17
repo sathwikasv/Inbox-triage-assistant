@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertOctagon, ArrowRight, CheckCircle2, FileJson, FlaskConical, Mail, RefreshCcw, UploadCloud } from "lucide-react";
+import { AlertOctagon, ArrowRight, CheckCircle2, FileJson, FlaskConical, RefreshCcw, UploadCloud, Download, Sheet } from "lucide-react";
 import { CHALLENGES, STARTER_FIXTURE, STARTER_HASH } from "../lib/starter";
 import { useTriage } from "../store/triage";
+import { fixtureToCsv } from "@c16/core";
+import { downloadText } from "../lib/eml";
 import { Badge, Button, cn } from "../ui";
 
 export default function ImportPage() {
@@ -55,11 +57,11 @@ export default function ImportPage() {
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-subtle text-muted">
             <UploadCloud className="h-6 w-6" />
           </span>
-          <h2 className="mt-3 font-semibold">Upload a JSON file</h2>
-          <p className="mt-1 text-sm text-muted">Same schema as the fixture. Drop it here or click to browse.</p>
+          <h2 className="mt-3 font-semibold">Upload JSON or CSV</h2>
+          <p className="mt-1 text-sm text-muted">Same fields as the fixture. Drop a file here or click to browse.</p>
           <input
             type="file"
-            accept="application/json,.json"
+            accept="application/json,.json,text/csv,.csv"
             className="sr-only"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -69,17 +71,19 @@ export default function ImportPage() {
           />
         </label>
 
-        <div className="card p-5 opacity-90">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-rose-500/10 text-rose-600">
-            <Mail className="h-5 w-5" />
+        <div className="card p-5">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600">
+            <Sheet className="h-5 w-5" />
           </span>
           <div className="mt-4 flex items-center gap-2">
-            <h2 className="font-semibold">Gmail (spare mailbox)</h2>
-            <Badge tone="amber">planned</Badge>
+            <h2 className="font-semibold">Spreadsheet (CSV)</h2>
+            <Badge tone="green">supported</Badge>
           </div>
-          <p className="mt-1 text-sm text-muted">Sync a dedicated test mailbox with read and label access. Replies would be saved as Gmail drafts after approval, never sent.</p>
-          <Button size="md" className="mt-5 w-full justify-center" disabled>
-            Connect Gmail
+          <p className="mt-1 text-sm text-muted">
+            Columns <code className="rounded bg-subtle px-1 font-mono text-xs">email_id, subject, body, received_at</code>. Quoted fields may hold commas and line breaks; a blank time means unknown. Errors name the row.
+          </p>
+          <Button size="md" className="mt-5 w-full justify-center" onClick={() => downloadText("c16_inbox_template.csv", fixtureToCsv((STARTER_FIXTURE as { records: { emails: Parameters<typeof fixtureToCsv>[0] } }).records.emails), "text/csv")}>
+            <Download className="h-4 w-4" /> Download CSV template
           </Button>
         </div>
       </div>

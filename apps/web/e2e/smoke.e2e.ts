@@ -5,7 +5,7 @@ test.use({ viewport: { width: 1440, height: 900 } });
 
 async function openComposer(page: Page) {
   const draft = page.getByLabel("Draft body");
-  if (!(await draft.isVisible())) await page.getByRole("button", { name: /Reply draft|Acknowledgement draft/ }).click();
+  if (!(await draft.isVisible())) await page.locator("button[aria-expanded]", { hasText: /^(Reply|Acknowledgement)/ }).click();
   return draft;
 }
 

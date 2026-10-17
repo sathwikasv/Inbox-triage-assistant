@@ -1,6 +1,6 @@
-import { runTriage, lintDraft, fixtureHash, QUARANTINE, type TriageResult } from "@c16/core";
+import { runTriage, lintDraft, fixtureHash, loadInput, needsApproval, QUARANTINE, type TriageResult } from "@c16/core";
 import { labelsFor } from "../lib/starter";
-import { EDITABLE_DECISION_FIELDS, LintRejected, type AuditEvent, type ClassifyResult, type DecisionPatch, type Repository, type Role, type SavedRun, type ThreadAction } from "./Repository";
+import { EDITABLE_DECISION_FIELDS, LintRejected, type AuditEvent, type ClassifyResult, type DecisionPatch, type HandoffHow, type Repository, type Role, type SavedRun, type ThreadAction } from "./Repository";
 
 const KEY = "c16.runs.v1";
 const LATEST = "c16.latest.v1";
@@ -63,14 +63,15 @@ export class LocalRepository implements Repository {
   }
 
   async importFixture(input: unknown, source: string): Promise<SavedRun> {
-    const hash = fixtureHash(input);
+    const data = loadInput(input); // JSON or CSV text; throws a FixtureError with readable issues
+    const hash = fixtureHash(data);
     const runId = `local-${hash}`;
     const existing = readAll()[runId];
     if (existing) {
       // Idempotent re-import: same content → same run, edits kept, nothing duplicated.
       return this.write(this.log({ ...existing, reused: true }, { type: "reimport", detail: `${source} has the same content (hash ${hash}); existing run reused` }));
     }
-    const result = runTriage(input, { labels: labelsFor(hash) }); // throws FixtureError on bad input
+    const result = runTriage(data, { labels: labelsFor(hash) });
     let run: SavedRun = { runId, source, result, reused: false, reviewed: false, savedAt: null, edits: {}, decisionEdits: {}, audit: [], storage: "local" };
     run = this.log(run, { type: "import", detail: `${source}: ${result.decisions.length} emails, ${result.threads.length} threads, hash ${hash}` });
     for (const d of result.decisions.filter((d) => d.status === "quarantined"))
@@ -97,8 +98,10 @@ export class LocalRepository implements Repository {
     const approvals = { ...(run.approvals ?? {}) };
     const hadApproval = !!approvals[threadKey];
     delete approvals[threadKey]; // an edited draft needs a fresh sign-off
+    const replies = { ...(run.replies ?? {}) };
+    delete replies[threadKey]; // and a fresh hand-off
     return this.write(
-      this.log({ ...run, edits, approvals, reviewed: false }, { type: "edit_draft", thread_key: threadKey, detail: `draft edited (${body.length} chars), lint clean${hadApproval ? "; previous approval withdrawn" : ""}` }),
+      this.log({ ...run, edits, approvals, replies, reviewed: false }, { type: "edit_draft", thread_key: threadKey, detail: `draft edited (${body.length} chars), lint clean${hadApproval ? "; previous approval withdrawn" : ""}` }),
     );
   }
 
@@ -158,6 +161,29 @@ export class LocalRepository implements Repository {
     if (!lintDraft(body, t).ok) throw new Error("the draft fails the lint; fix it before approval");
     const approvals = { ...(run.approvals ?? {}), [threadKey]: { by: "approver", at: now() } };
     return this.write(this.log({ ...run, approvals }, { type: "approve_draft", thread_key: threadKey, detail: "draft approved by Approver; still draft-only, nothing sent" }));
+  }
+
+  /** Same gate as the API: lint clean, and Approver sign-off when the reply states a date, commits or is escalated. */
+  async handoff(runId: string, threadKey: string, how: HandoffHow, role: Role) {
+    if (role === "viewer") throw new Error("viewers cannot hand off replies");
+    const run = this.must(runId);
+    const t = run.result.threads.find((x) => x.thread_key === threadKey);
+    if (!t || t.draft_mode === "none") throw new Error(`thread ${threadKey} has no reply to hand off`);
+    const body = run.edits[threadKey]?.body ?? run.result.drafts.find((d) => d.thread_key === threadKey)?.body ?? "";
+    if (!lintDraft(body, t).ok) throw new Error("the reply fails the lint; fix it first");
+    const gate = needsApproval(body, t);
+    if (gate.needed && !run.approvals?.[threadKey]) throw new Error(`needs Approver sign-off first: ${gate.reasons.join(", ")}`);
+    const replies = { ...(run.replies ?? {}), [threadKey]: { how, at: now(), body, replied_at: null } };
+    return this.write(this.log({ ...run, replies }, { type: "handoff", thread_key: threadKey, detail: `reply ${how === "eml" ? "downloaded as an unsent .eml draft" : "copied"} for a person to send; the tool sent nothing` }));
+  }
+
+  async markReplied(runId: string, threadKey: string, role: Role) {
+    if (role === "viewer") throw new Error("viewers cannot mark replies");
+    const run = this.must(runId);
+    const h = run.replies?.[threadKey];
+    if (!h) throw new Error("hand the reply off (copy or .eml) before marking it replied");
+    const replies = { ...run.replies, [threadKey]: { ...h, replied_at: now() } };
+    return this.write(this.log({ ...run, replies }, { type: "mark_replied", thread_key: threadKey, detail: "marked replied: sent by a person outside the tool" }));
   }
 
   async classify(subject: string, body: string): Promise<ClassifyResult> {

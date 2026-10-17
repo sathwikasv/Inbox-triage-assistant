@@ -48,6 +48,8 @@ interface TriageState {
   setRole(r: Role): void;
   setTheme(t: Theme): void;
   approveDraft(threadKey: string): Promise<void>;
+  handoff(threadKey: string, how: "copy" | "eml"): Promise<boolean>;
+  markReplied(threadKey: string): Promise<void>;
   boot(): Promise<void>;
   switchRepo(kind: RepoKind): Promise<void>;
   importFixture(input: unknown, source: string): Promise<boolean>;
@@ -116,6 +118,23 @@ export const useTriage = create<TriageState>((set, get) => {
       if (tone === "warn") sonner.warning(text);
       else if (tone === "info") sonner.info(text);
       else sonner.success(text);
+    },
+
+    async handoff(threadKey, how) {
+      try {
+        await act((r) => get().repo.handoff(r.runId, threadKey, how, get().role));
+        get().toast(how === "eml" ? "Unsent draft downloaded. Open it in your mail app to send." : "Reply copied. Paste it into your mail app to send.");
+        return true;
+      } catch (e) {
+        get().toast((e as Error).message, "warn");
+        return false;
+      }
+    },
+
+    async markReplied(threadKey) {
+      await act((r) => get().repo.markReplied(r.runId, threadKey, get().role))
+        .then(() => get().toast("Marked replied"))
+        .catch((e) => get().toast((e as Error).message, "warn"));
     },
 
     async approveDraft(threadKey) {

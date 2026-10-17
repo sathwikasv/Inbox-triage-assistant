@@ -1,5 +1,5 @@
 import { FixtureError, loadInput } from "@c16/core";
-import { LintRejected, type ClassifyResult, type DecisionPatch, type Repository, type Role, type SavedRun, type ThreadAction } from "./Repository";
+import { LintRejected, type ClassifyResult, type DecisionPatch, type HandoffHow, type Repository, type Role, type SavedRun, type ThreadAction } from "./Repository";
 
 export const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:4000";
 
@@ -111,6 +111,14 @@ export class ApiRepository implements Repository {
 
   act(runId: string, threadKey: string, action: ThreadAction, opts: { to?: string; note?: string } = {}) {
     return call<SavedRun>("POST", `/runs/${encodeURIComponent(runId)}/actions`, { thread_key: threadKey, action, ...opts });
+  }
+
+  handoff(runId: string, threadKey: string, how: HandoffHow, role: Role) {
+    return call<SavedRun>("POST", `/runs/${encodeURIComponent(runId)}/drafts/${encodeURIComponent(threadKey)}/handoff`, { how }, { "x-role": role });
+  }
+
+  markReplied(runId: string, threadKey: string, role: Role) {
+    return call<SavedRun>("POST", `/runs/${encodeURIComponent(runId)}/drafts/${encodeURIComponent(threadKey)}/replied`, {}, { "x-role": role });
   }
 
   approveDraft(runId: string, threadKey: string, role: Role) {

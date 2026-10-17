@@ -1,10 +1,10 @@
-import { AlertTriangle, CheckCircle2, Eye, Inbox, ListChecks, Reply, ShieldAlert, Tag, type LucideIcon } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CheckCircle2, Eye, Inbox, ListChecks, MailCheck, PenLine, Reply, Send, ShieldAlert, Tag, type LucideIcon } from "lucide-react";
 import type { TriageResult } from "@c16/core";
-import { VIEWS, decisionsOf } from "../../lib/views";
+import { REPLY_VIEWS, VIEWS, decisionsOf, type View } from "../../lib/views";
 import { cn } from "../../ui";
 import type { SavedRun } from "../../repo";
 
-const VIEW_ICON: Record<string, LucideIcon> = { all: Inbox, action: Reply, escalations: AlertTriangle, review: ListChecks, watch: Eye, resolved: CheckCircle2, quarantine: ShieldAlert };
+const VIEW_ICON: Record<string, LucideIcon> = { all: Inbox, action: Reply, escalations: AlertTriangle, review: ListChecks, watch: Eye, resolved: CheckCircle2, quarantine: ShieldAlert, drafts: PenLine, approval: BadgeCheck, handed: Send, replied: MailCheck };
 const LABEL_DOT: Record<string, string> = {
   Urgent: "bg-rose-500",
   "Needs owner": "bg-amber-500",
@@ -30,28 +30,8 @@ export function InboxSidebar({ run, view, onView, label, onLabel }: { run: Saved
   const labels = [...new Set(r.threads.flatMap((t) => threadLabels(r, t.thread_key)))].sort();
   return (
     <aside className="flex h-full flex-col gap-5 overflow-y-auto border-r border-line bg-surface p-3">
-      <div>
-        <div className="label-xs px-2 pb-1.5">Inbox</div>
-        {VIEWS.map((v) => {
-          const Icon = VIEW_ICON[v.id] ?? Inbox;
-          const n = r.threads.filter((t) => v.test(t, decisionsOf(r, t))).length;
-          const on = view === v.id && !label;
-          return (
-            <button
-              key={v.id}
-              onClick={() => {
-                onView(v.id);
-                onLabel(null);
-              }}
-              className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors", on ? "bg-brand-soft font-semibold text-brand" : "text-fg/80 hover:bg-subtle")}
-            >
-              <Icon className={cn("h-4 w-4", on ? "text-brand" : "text-muted")} />
-              <span className="flex-1 text-left">{v.label}</span>
-              {n > 0 && <span className={cn("min-w-[1.5rem] rounded-md px-1.5 text-center text-xs tabular-nums", on ? "bg-brand/15" : v.id === "escalations" ? "bg-rose-500/10 text-rose-600" : "text-muted")}>{n}</span>}
-            </button>
-          );
-        })}
-      </div>
+      <ViewGroup title="Inbox" views={VIEWS} run={run} view={view} label={label} onView={onView} onLabel={onLabel} />
+      <ViewGroup title="Replies" views={REPLY_VIEWS} run={run} view={view} label={label} onView={onView} onLabel={onLabel} />
 
       <div>
         <div className="label-xs flex items-center gap-1.5 px-2 pb-1.5">
@@ -87,5 +67,33 @@ export function InboxSidebar({ run, view, onView, label, onLabel }: { run: Saved
         </div>
       </div>
     </aside>
+  );
+}
+
+function ViewGroup({ title, views, run, view, label, onView, onLabel }: { title: string; views: View[]; run: SavedRun; view: string; label: string | null; onView: (v: string) => void; onLabel: (l: string | null) => void }) {
+  const r = run.result;
+  return (
+    <div>
+      <div className="label-xs px-2 pb-1.5">{title}</div>
+      {views.map((v) => {
+        const Icon = VIEW_ICON[v.id] ?? Inbox;
+        const n = r.threads.filter((t) => v.test(t, decisionsOf(r, t), run)).length;
+        const on = view === v.id && !label;
+        return (
+          <button
+            key={v.id}
+            onClick={() => {
+              onView(v.id);
+              onLabel(null);
+            }}
+            className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-colors", on ? "bg-brand-soft font-semibold text-brand" : "text-fg/80 hover:bg-subtle")}
+          >
+            <Icon className={cn("h-4 w-4", on ? "text-brand" : "text-muted")} />
+            <span className="flex-1 text-left">{v.label}</span>
+            {n > 0 && <span className={cn("min-w-[1.5rem] rounded-md px-1.5 text-center text-xs tabular-nums", on ? "bg-brand/15" : v.id === "escalations" || v.id === "approval" ? "bg-rose-500/10 text-rose-600" : "text-muted")}>{n}</span>}
+          </button>
+        );
+      })}
+    </div>
   );
 }
