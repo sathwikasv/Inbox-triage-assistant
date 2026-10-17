@@ -39,11 +39,11 @@ function rows(text: string): string[][] {
   return out.filter((r) => r.some((x) => x.trim() !== ""));
 }
 
-export const looksLikeCsv = (text: string) => /^﻿?\s*"?email_id"?\s*,/i.test(text);
+export const looksLikeCsv = (text: string) => /^\uFEFF?\s*"?email_id"?\s*,/i.test(text);
 
 /** Turns inbox CSV text into the fixture shape, with row-numbered errors for anything malformed. */
 export function fixtureFromCsv(text: string) {
-  const all = rows(text.replace(/^﻿/, ""));
+  const all = rows(text.replace(/^\uFEFF/, ""));
   if (!all.length) throw new FixtureError([{ path: "(file)", message: "the CSV is empty" }]);
   const header = all[0].map((h) => h.trim().toLowerCase());
   const missing = REQUIRED.filter((c) => !header.includes(c));
