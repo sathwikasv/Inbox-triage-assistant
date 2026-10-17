@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@eslint/js':
+        specifier: 9.39.0
+        version: 9.39.0
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.8.1
         version: 8.71.2(@typescript-eslint/parser@8.71.2(eslint@9.39.5(jiti@1.21.7))(typescript@5.9.3))(eslint@9.39.5(jiti@1.21.7))(typescript@5.9.3)
@@ -541,6 +544,10 @@ packages:
     resolution: {integrity: sha512-F42g89Qd5oAWtp0k0nnSrjziAKza7w8SVT4mStc18LZMaRb4J1HQAHLCalEtDCxrTuksx7NU9qsmeLwpOfPqWw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@eslint/js@9.39.0':
+    resolution: {integrity: sha512-BIhe0sW91JGPiaF1mOuPy5v8NflqfjIcDNpC+LbW9f609WVRX1rArrhi6Z2ymvrAry9jw+5POTj4t2t62o8Bmw==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
   '@eslint/js@9.39.5':
     resolution: {integrity: sha512-QywQuszQh77pIXCsq998c8hbhSTI/azTty1Z6N53dmAudKHhy573j3yvRLsX2BSp8YpLtoCEG8E9DJe+8zUh4A==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -655,6 +662,11 @@ packages:
   '@rollup/rollup-linux-arm-musleabihf@4.64.8':
     resolution: {integrity: sha512-sBav+JhTKyOww+UTCSLumc0rP8IKqiWaj9eqkSf71EkbYI5lmjDVrn/gWEkkx8EZ8SQltk57O1bY88BvCQlbbA==}
     cpu: [arm]
+    os: [linux]
+
+  '@rollup/rollup-linux-arm64-gnu@4.64.8':
+    resolution: {integrity: sha512-KBNMmyw4lPdL+2KtvE5vqODZRJgv7Y0Qg/v8uBL+i2KYLtAnfrvW6ukxZPO2lt6mfCOmvKJ1IcKAp3Smi3JpBQ==}
+    cpu: [arm64]
     os: [linux]
 
   '@rollup/rollup-linux-arm64-musl@4.64.8':
@@ -2562,6 +2574,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@eslint/js@9.39.0': {}
+
   '@eslint/js@9.39.5': {}
 
   '@eslint/object-schema@2.1.7': {}
@@ -2651,6 +2665,9 @@ snapshots:
     optional: true
 
   '@rollup/rollup-linux-arm-musleabihf@4.64.8':
+    optional: true
+
+  '@rollup/rollup-linux-arm64-gnu@4.64.8':
     optional: true
 
   '@rollup/rollup-linux-arm64-musl@4.64.8':
@@ -3947,6 +3964,7 @@ snapshots:
       '@rollup/rollup-freebsd-x64': 4.64.8
       '@rollup/rollup-linux-arm-gnueabihf': 4.64.8
       '@rollup/rollup-linux-arm-musleabihf': 4.64.8
+      '@rollup/rollup-linux-arm64-gnu': 4.64.8
       '@rollup/rollup-linux-arm64-musl': 4.64.8
       '@rollup/rollup-linux-loong64-gnu': 4.64.8
       '@rollup/rollup-linux-loong64-musl': 4.64.8
