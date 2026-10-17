@@ -45,6 +45,11 @@ export async function loadRun(id: string, reused = false) {
     storage: "api" as const,
     ai: (run.ai ?? { status: "disabled" }) as { status: string; model?: string; error?: string; ms?: number },
     approvals: Object.fromEntries(drafts.filter((d) => d.approvedAt).map((d) => [d.threadKey, { by: d.approvedBy ?? "approver", at: new Date(d.approvedAt!).toISOString() }])),
+    replies: Object.fromEntries(
+      drafts
+        .filter((d) => d.handoffAt)
+        .map((d) => [d.threadKey, { how: d.handoffHow as "copy" | "eml", at: new Date(d.handoffAt!).toISOString(), body: d.handoffBody ?? "", replied_at: d.repliedAt ? new Date(d.repliedAt).toISOString() : null }]),
+    ),
   };
 }
 

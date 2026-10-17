@@ -27,6 +27,7 @@ export const DecisionPatchSchema = z
   .refine((v) => Object.keys(v).length > 0, "at least one editable field is required");
 
 export const DraftPutSchema = z.object({ body: z.string().min(1).max(5000) }).strict();
+export const HandoffSchema = z.object({ how: z.enum(["copy", "eml"]) }).strict();
 export const PreviewSchema = z.object({ email_id: z.string().min(1), action: z.enum(["label", "archive"]) }).strict();
 
 export const ActionSchema = z

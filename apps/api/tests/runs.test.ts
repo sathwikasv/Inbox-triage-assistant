@@ -182,6 +182,40 @@ describe("drafts and previews", () => {
     expect((await fetch(base + `/runs/${json.runId}/drafts/QUARANTINE/approve`, { method: "POST", headers: { "x-role": "approver" } })).status).toBe(404);
   });
 
+  it("a reply leaves the tool only after lint and, when needed, Approver sign-off; nothing is sent", async () => {
+    const { json } = await call("POST", "/runs", fixture);
+    const post = (path: string, body: unknown, role = "reviewer") =>
+      fetch(base + `/runs/${json.runId}${path}`, { method: "POST", headers: { "content-type": "application/json", "x-role": role }, body: JSON.stringify(body) });
+
+    // T-dup-ticket states a date → needs an Approver before it can be copied or exported.
+    const blocked = await post("/drafts/T-dup-ticket/handoff", { how: "eml" });
+    expect(blocked.status).toBe(403);
+    expect((await blocked.json()).reasons).toContain("states a date");
+    expect((await post("/drafts/T-dup-ticket/replied", {})).status).toBe(409); // nothing handed off yet
+
+    expect((await post("/drafts/T-dup-ticket/approve", {}, "approver")).status).toBe(200);
+    const ok = await post("/drafts/T-dup-ticket/handoff", { how: "eml" });
+    expect(ok.status).toBe(200);
+    const run = await ok.json();
+    expect(run.replies["T-dup-ticket"]).toMatchObject({ how: "eml", replied_at: null });
+    expect(run.audit.at(-1).detail).toContain("the tool sent nothing");
+
+    const replied = await (await post("/drafts/T-dup-ticket/replied", {})).json();
+    expect(replied.replies["T-dup-ticket"].replied_at).toBeTruthy();
+    expect(replied.audit.at(-1).type).toBe("mark_replied");
+
+    // A plain acknowledgement needs no Approver; a viewer can never hand off.
+    expect((await post("/drafts/T-test-data/handoff", { how: "copy" }, "viewer")).status).toBe(403);
+    expect((await post("/drafts/T-test-data/handoff", { how: "copy" })).status).toBe(200);
+    expect((await post("/drafts/T-test-data/handoff", { how: "send" })).status).toBe(400);
+    expect((await post("/drafts/QUARANTINE/handoff", { how: "copy" })).status).toBe(404);
+
+    // Editing the reply withdraws approval and hand-off.
+    const edited = await call("PUT", `/runs/${json.runId}/drafts/T-dup-ticket`, { body: "Dev has the fix, due 20 October 2026." });
+    expect(edited.json.replies["T-dup-ticket"]).toBeUndefined();
+    expect(edited.json.approvals["T-dup-ticket"]).toBeUndefined();
+  });
+
   it("save marks the run reviewed and it reloads from the database", async () => {
     const { json } = await call("POST", "/runs", fixture);
     await call("POST", `/runs/${json.runId}/save`);
