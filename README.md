@@ -35,15 +35,17 @@ Built for the Fynd × NMIMS case C16 (inbox triage and reply drafts). The plan, 
 ## Run locally
 ```
 pnpm install
-pnpm --filter @c16/core build
-pnpm dev:web                      # http://localhost:5173  (demo mode works with nothing else)
-pnpm dev:db & pnpm dev:api        # optional: http://localhost:4000 (Yahoo and AI replies)
+cp .env.example .env              # then fill in your keys (see below)
+pnpm check:env                    # shows which keys are set, never their values
+pnpm dev                          # web on http://localhost:5173, server on http://localhost:4000
 pnpm test                         # unit and API tests
 pnpm --filter web build && pnpm --filter web test:e2e   # end-to-end (PW_CHANNEL=msedge to reuse Edge)
 ```
 
 ## Configuration
-Web app (build-time, or entered in Settings → Integrations; OAuth client IDs are not secrets):
+All settings go in one `.env` file at the repo root ([.env.example](.env.example) lists them). The web app only reads the `VITE_` variables, which are public identifiers; the server's secrets in the same file never reach the browser. When provider IDs are set, the demo mailboxes are hidden and the app asks you to connect your real mailboxes.
+
+Web app (public; can also be entered in Settings → Integrations):
 
 | Variable | Used for |
 |---|---|
@@ -51,15 +53,15 @@ Web app (build-time, or entered in Settings → Integrations; OAuth client IDs a
 | `VITE_MS_CLIENT_ID` | Outlook mail and calendar sign-in |
 | `VITE_API_URL` | The server, for Yahoo Mail and AI replies |
 
-Server (`apps/api/.env`; never commit it):
+Server (secrets; never commit `.env`):
 
 | Variable | Used for |
 |---|---|
 | `WEB_ORIGIN`, `CORS_ORIGIN` | The web app's URL (credentialed CORS, Yahoo popup) |
 | `SESSION_SECRET` | Encrypts provider tokens held in server memory |
 | `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`, `YAHOO_REDIRECT_URI` | Yahoo Mail over IMAP/SMTP with OAuth 2.0 |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | Optional AI type check and AI reply drafts |
-| `MONGODB_URI` | The case-evaluation API (`/runs`) |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | The AI assistant: summaries, reply drafts and review flags (optional; rules only without it) |
+| `MONGODB_URI` | Optional: the case-evaluation API (`/runs`); the server runs without it |
 
 Step-by-step provider setup: [docs/providers.md](docs/providers.md). Deployment: [docs/deploy.md](docs/deploy.md).
 

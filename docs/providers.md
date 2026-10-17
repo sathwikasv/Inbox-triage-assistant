@@ -35,6 +35,11 @@ Yahoo has no public mail REST API. Mail is read over IMAP and sent over SMTP wit
 3. On the server, set `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`, `YAHOO_REDIRECT_URI`, `WEB_ORIGIN` (the app's URL), `CORS_ORIGIN` (the same) and `SESSION_SECRET`.
 4. In the app, set the server URL in Settings → Integrations, then use Connect Yahoo Mail.
 
+## Where the keys go
+Put every value in the repo-root `.env` (copy `.env.example`), run `pnpm check:env` to see which ones are set, then `pnpm dev`.
+- `VITE_GOOGLE_CLIENT_ID` and `VITE_MS_CLIENT_ID` are public client IDs and are built into the web app.
+- `GEMINI_API_KEY`, `YAHOO_CLIENT_SECRET` and `SESSION_SECRET` are secrets. They are read only by the server, never start with `VITE_`, and never reach the browser.
+
 ## Status without credentials
 - With no IDs configured, the Connect buttons stay disabled and explain what is missing.
 - With IDs configured, failures (popup closed, consent refused, API errors) are shown as messages. No account is shown as connected unless the provider returned real mail.
