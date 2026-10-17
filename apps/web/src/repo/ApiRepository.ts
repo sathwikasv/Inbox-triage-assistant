@@ -1,4 +1,4 @@
-import { LintRejected, type ClassifyResult, type DecisionPatch, type Repository, type SavedRun, type ThreadAction } from "./Repository";
+import { LintRejected, type ClassifyResult, type DecisionPatch, type Repository, type Role, type SavedRun, type ThreadAction } from "./Repository";
 
 export const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:4000";
 
@@ -12,10 +12,10 @@ class ApiError extends Error {
   }
 }
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
   const res = await fetch(API_URL + path, {
     method,
-    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    headers: { ...(body === undefined ? {} : { "content-type": "application/json" }), ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
@@ -111,6 +111,10 @@ export class ApiRepository implements Repository {
 
   act(runId: string, threadKey: string, action: ThreadAction, opts: { to?: string; note?: string } = {}) {
     return call<SavedRun>("POST", `/runs/${encodeURIComponent(runId)}/actions`, { thread_key: threadKey, action, ...opts });
+  }
+
+  approveDraft(runId: string, threadKey: string, role: Role) {
+    return call<SavedRun>("POST", `/runs/${encodeURIComponent(runId)}/drafts/${encodeURIComponent(threadKey)}/approve`, {}, { "x-role": role });
   }
 
   classify(subject: string, body: string) {

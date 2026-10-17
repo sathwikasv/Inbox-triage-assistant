@@ -1,3 +1,67 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --canvas: 244 245 248;
+    --surface: 255 255 255;
+    --subtle: 248 249 251;
+    --line: 228 231 236;
+    --fg: 16 24 40;
+    --muted: 102 112 133;
+    --brand: 79 70 229;
+    --brand-fg: 255 255 255;
+    --brand-soft: 238 240 255;
+    --nav: 12 17 32;
+    /* charts: validated reference blue (dataviz palette slot 1) and fixed status colours */
+    --series-1: 42 120 214;
+    --series-track: 205 226 251;
+    --status-critical: 208 59 59;
+    --status-warning: 250 178 25;
+    --status-neutral: 137 135 129;
+    color-scheme: light;
+  }
+  .dark {
+    --canvas: 10 12 17;
+    --surface: 18 21 28;
+    --subtle: 24 28 37;
+    --line: 39 45 57;
+    --fg: 228 231 238;
+    --muted: 148 157 175;
+    --brand: 129 140 248;
+    --brand-fg: 12 17 32;
+    --brand-soft: 35 38 66;
+    --nav: 6 9 16;
+    --series-1: 57 135 229;
+    --series-track: 24 79 149;
+    --status-critical: 208 59 59;
+    --status-warning: 250 178 25;
+    --status-neutral: 137 135 129;
+    color-scheme: dark;
+  }
+  html,
+  body {
+    @apply bg-canvas text-fg antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection {
+    @apply bg-brand/20;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand/50 ring-offset-1 ring-offset-canvas;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line)) transparent;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-line bg-surface shadow-card;
+  }
+  .label-xs {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-muted;
+  }
+}

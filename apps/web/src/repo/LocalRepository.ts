@@ -1,6 +1,6 @@
 import { runTriage, lintDraft, fixtureHash, QUARANTINE, type TriageResult } from "@c16/core";
 import { labelsFor } from "../lib/starter";
-import { EDITABLE_DECISION_FIELDS, LintRejected, type AuditEvent, type ClassifyResult, type DecisionPatch, type Repository, type SavedRun, type ThreadAction } from "./Repository";
+import { EDITABLE_DECISION_FIELDS, LintRejected, type AuditEvent, type ClassifyResult, type DecisionPatch, type Repository, type Role, type SavedRun, type ThreadAction } from "./Repository";
 
 const KEY = "c16.runs.v1";
 const LATEST = "c16.latest.v1";
@@ -94,7 +94,12 @@ export class LocalRepository implements Repository {
     const lint = lintDraft(body, thread);
     if (!lint.ok) throw new LintRejected(lint.violations);
     const edits = { ...run.edits, [threadKey]: { body, lint_ok: true, violations: [], at: now() } };
-    return this.write(this.log({ ...run, edits, reviewed: false }, { type: "edit_draft", thread_key: threadKey, detail: `draft edited (${body.length} chars), lint clean` }));
+    const approvals = { ...(run.approvals ?? {}) };
+    const hadApproval = !!approvals[threadKey];
+    delete approvals[threadKey]; // an edited draft needs a fresh sign-off
+    return this.write(
+      this.log({ ...run, edits, approvals, reviewed: false }, { type: "edit_draft", thread_key: threadKey, detail: `draft edited (${body.length} chars), lint clean${hadApproval ? "; previous approval withdrawn" : ""}` }),
+    );
   }
 
   async editDecision(runId: string, emailId: string, patch: DecisionPatch) {
@@ -142,6 +147,17 @@ export class LocalRepository implements Repository {
           ? `watching${t.watch_date ? ` until ${t.watch_date}` : ""}${note}`
           : `marked for archive (${t.email_ids.length} email(s)); preview only, mailbox unchanged`;
     return this.write(this.log(run, { type: action, thread_key: threadKey, detail }));
+  }
+
+  async approveDraft(runId: string, threadKey: string, role: Role) {
+    if (role !== "approver") throw new Error("only an Approver can sign off drafts");
+    const run = this.must(runId);
+    const t = run.result.threads.find((x) => x.thread_key === threadKey);
+    if (!t || t.draft_mode === "none") throw new Error(`thread ${threadKey} has no draft to approve`);
+    const body = run.edits[threadKey]?.body ?? run.result.drafts.find((d) => d.thread_key === threadKey)?.body ?? "";
+    if (!lintDraft(body, t).ok) throw new Error("the draft fails the lint; fix it before approval");
+    const approvals = { ...(run.approvals ?? {}), [threadKey]: { by: "approver", at: now() } };
+    return this.write(this.log({ ...run, approvals }, { type: "approve_draft", thread_key: threadKey, detail: "draft approved by Approver; still draft-only, nothing sent" }));
   }
 
   async classify(subject: string, body: string): Promise<ClassifyResult> {
