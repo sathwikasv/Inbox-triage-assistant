@@ -1,4 +1,4 @@
-import type { MailAccount, MailboxData, MailMessage } from "@c16/core";
+import type { CalendarEvent, MailAccount, MailboxData, MailMessage } from "@c16/core";
 import starter from "../../../../data/fixture/C16/fixture.json";
 
 // DEMO MODE: fictional accounts and emails. Nothing here came from a real mailbox.
@@ -65,3 +65,12 @@ export const DEMO_MAILBOX: MailboxData = {
   messages: [...c16, ...outlookExtra, ...gmail, ...yahoo],
   demo_clock: "2026-10-17T10:00:00+05:30",
 };
+
+/** Demo calendar: fictional events, labelled as demo wherever they appear. */
+const ev = (id: string, title: string, start: string, end: string, extra: Partial<CalendarEvent> = {}): CalendarEvent => ({ id: `demo-cal:${id}`, title, start, end, all_day: false, location: null, link: null, participants: [], reminders_min: [10], source_message_id: null, calendar: "demo", simulated: true, ...extra });
+export const DEMO_EVENTS: CalendarEvent[] = [
+  ev("standup", "Ops stand-up", "2026-10-17T10:30:00+05:30", "2026-10-17T10:45:00+05:30", { location: "Teams" }),
+  ev("vendor-call", "Vendor call: Sunrise Traders", "2026-10-18T15:15:00+05:30", "2026-10-18T15:45:00+05:30"),
+  ev("review", "Store launch review", "2026-10-19T14:00:00+05:30", "2026-10-19T15:00:00+05:30", { location: "Boardroom 1" }),
+  ev("one-on-one", "1:1 with Meera", "2026-10-20T16:00:00+05:30", "2026-10-20T16:30:00+05:30"),
+];

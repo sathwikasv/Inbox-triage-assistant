@@ -1,175 +1,197 @@
-import { useEffect } from "react";
-import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams, Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { Toaster } from "sonner";
-import { BarChart3, ChevronDown, ClipboardCheck, Database, FlaskConical, Gavel, Inbox, LogOut, Moon, Search, Settings, ShieldCheck, Sparkles, Sun, Upload, Mail } from "lucide-react";
-import ImportPage from "./pages/ImportPage";
-import WorkspacePage from "./pages/WorkspacePage";
-import MailPage from "./pages/MailPage";
-import PlaygroundPage from "./pages/PlaygroundPage";
-import ReviewPage from "./pages/ReviewPage";
-import JudgePage from "./pages/JudgePage";
-import InsightsPage from "./pages/InsightsPage";
+import { AlertTriangle, Archive, CalendarClock, CalendarDays, ChevronDown, Clock, FileEdit, Hourglass, Inbox, LayoutDashboard, ListTodo, Menu as MenuIcon, Moon, Search, Send, Settings, ShieldAlert, Sun, Tag, UserCheck, Users, X, type LucideIcon } from "lucide-react";
+import type { Role } from "@c16/core";
+import DashboardPage from "./pages/DashboardPage";
+import InboxPage, { inFolder, type Folder } from "./pages/InboxPage";
+import TasksPage from "./pages/TasksPage";
+import CalendarPage from "./pages/CalendarPage";
+import FollowupsPage from "./pages/FollowupsPage";
 import SettingsPage from "./pages/SettingsPage";
 import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
-import { useTriage } from "./store/triage";
+import { useApp } from "./store/app";
+import { useMailbox, useMailboxView } from "./store/mailbox";
 import { ROLES } from "./lib/permissions";
-import { Avatar, Kbd, Menu, MenuCheck, MenuContent, MenuItem, MenuLabel, MenuSep, MenuTrigger, Tip, TipProvider, cn } from "./ui";
-import type { Role } from "./repo";
+import { ProviderMark } from "./components/mail/common";
+import { Avatar, Kbd, Menu, MenuCheck, MenuContent, MenuLabel, MenuTrigger, TipProvider, cn } from "./ui";
 
-const NAV = [
-  { to: "/mail", label: "Unified inbox", icon: Mail },
-  { to: "/inbox", label: "C16 triage", icon: Inbox },
-  { to: "/insights", label: "Insights", icon: BarChart3 },
-  { to: "/playground", label: "Test an email", icon: FlaskConical },
-  { to: "/review", label: "Review", icon: ClipboardCheck },
-  { to: "/judge", label: "Judge view", icon: Gavel },
-];
+function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const view = useMailboxView();
+  const { state } = useMailbox();
+  const { pathname } = useLocation();
+  const [params] = useSearchParams();
+  const folder = pathname === "/inbox" ? ((params.get("view") ?? "inbox") as Folder) : null;
+  const account = params.get("account");
+  const outbound = new Set<string>();
+  const starred = new Set<string>();
+  for (const t of view.threads)
+    for (const id of t.message_ids) {
+      const m = view.messages.find((x) => x.id === id)!;
+      if (m.direction === "outbound") outbound.add(t.key);
+      if (state.starred[id] ?? m.starred) starred.add(t.key);
+    }
+  const ctx = { drafts: state.drafts, outbound, starred };
+  const count = (f: Folder) => view.threads.filter((t) => inFolder(t, f, ctx)).length;
+  const unread = (f: Folder) => view.threads.filter((t) => inFolder(t, f, ctx)).reduce((n, t) => n + t.unread, 0);
+  const pendingTasks = view.tasks.filter((t) => t.status !== "completed").length;
+  const followups = view.followups.filter((f) => f.status === "open").length;
 
-function ThreadRedirect() {
-  const { key = "" } = useParams();
-  const { hash } = useLocation();
-  return <Navigate to={`/inbox/${encodeURIComponent(key)}${hash}`} replace />;
-}
+  const item = (active: boolean) => cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors", active ? "bg-brand-soft font-semibold text-brand" : "text-fg/80 hover:bg-subtle");
+  const F = ({ f, icon: Icon, label, n }: { f: Folder; icon: LucideIcon; label: string; n?: number }) => (
+    <Link to={f === "inbox" ? "/inbox" : `/inbox?view=${f}`} onClick={onNavigate} className={item(folder === f && !account)}>
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="flex-1 truncate">{label}</span>
+      {!!n && <span className="text-xs tabular-nums text-muted">{n}</span>}
+    </Link>
+  );
+  const P = ({ to, icon: Icon, label, n }: { to: string; icon: LucideIcon; label: string; n?: number }) => (
+    <NavLink to={to} onClick={onNavigate} className={({ isActive }) => item(isActive)}>
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="flex-1">{label}</span>
+      {!!n && <span className="text-xs tabular-nums text-muted">{n}</span>}
+    </NavLink>
+  );
 
-function TopBar({ onSearch }: { onSearch: () => void }) {
-  const { run, repo, switchRepo, ai, role, setRole, theme, setTheme } = useTriage();
-  const navigate = useNavigate();
-  const policy = run?.result.policy ?? { draft_only: true, auto_send: false };
-  const tab = ({ isActive }: { isActive: boolean }) =>
-    cn("inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors", isActive ? "bg-white/10 text-white" : "text-white/65 hover:bg-white/5 hover:text-white");
   return (
-    <header className="z-30 shrink-0 bg-nav text-white">
-      <div className="flex h-14 items-center gap-3 px-4">
-        <Link to="/inbox" className="mr-2 flex items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-indigo-400 to-violet-600 shadow-inner">
-            <Inbox className="h-4 w-4" />
-          </span>
-          <span className="hidden text-[15px] font-semibold tracking-tight sm:block">
-            Triage<span className="text-indigo-300">desk</span>
-          </span>
-        </Link>
-        <nav className="hidden items-center gap-0.5 lg:flex">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} className={tab}>
-              <n.icon className="h-4 w-4" />
-              {n.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <button onClick={onSearch} className="hidden h-9 w-64 items-center gap-2 rounded-lg bg-white/[0.07] px-3 text-sm text-white/60 ring-1 ring-inset ring-white/10 hover:bg-white/10 md:flex">
-            <Search className="h-4 w-4" />
-            <span className="flex-1 text-left">Search or jump to…</span>
-            <span className="rounded border border-white/15 px-1.5 font-mono text-[10px]">Ctrl K</span>
-          </button>
-          <Tip content={ai.enabled ? `Email types are double-checked by ${ai.model}. Facts always come from the rules.` : "AI type check is off: rules only. Add GEMINI_API_KEY to the API to enable it."}>
-            <span className={cn("hidden h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium ring-1 ring-inset sm:inline-flex", ai.enabled ? "bg-violet-500/15 text-violet-200 ring-violet-400/30" : "bg-white/5 text-white/60 ring-white/10")}>
-              <Sparkles className="h-3.5 w-3.5" /> {ai.enabled ? "AI on" : "AI off"}
-            </span>
-          </Tip>
-          <Tip content={`Policy: draft_only = ${policy.draft_only}, auto_send = ${policy.auto_send}. Frozen in code; emails cannot change it.`}>
-            <Link to="/settings" className="hidden h-8 items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 text-xs font-medium text-emerald-200 ring-1 ring-inset ring-emerald-400/30 sm:inline-flex">
-              <ShieldCheck className="h-3.5 w-3.5" /> Draft-only
-            </Link>
-          </Tip>
-          <Tip content={theme === "dark" ? "Light mode" : "Dark mode"}>
-            <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="grid h-8 w-8 place-items-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white" aria-label="Toggle theme">
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
-          </Tip>
-          <Menu>
-            <MenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 hover:bg-white/10" aria-label="Account and role">
-                <Avatar name={ROLES[role].label} size="sm" />
-                <span className="hidden text-left leading-tight sm:block">
-                  <span className="block text-xs font-medium">Ops team</span>
-                  <span className="block text-[11px] text-white/55">{ROLES[role].label}</span>
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-white/50" />
-              </button>
-            </MenuTrigger>
-            <MenuContent>
-              <MenuLabel>Act as</MenuLabel>
-              {(Object.keys(ROLES) as Role[]).map((r) => (
-                <MenuCheck key={r} checked={role === r} onSelect={() => setRole(r)}>
-                  <span>
-                    <span className="block font-medium">{ROLES[r].label}</span>
-                    <span className="block max-w-[15rem] text-xs text-muted">{ROLES[r].description}</span>
-                  </span>
-                </MenuCheck>
-              ))}
-              <MenuSep />
-              <MenuLabel>Storage</MenuLabel>
-              <MenuCheck checked={repo.kind === "api"} onSelect={() => switchRepo("api")}>
-                API · MongoDB
-              </MenuCheck>
-              <MenuCheck checked={repo.kind === "local"} onSelect={() => switchRepo("local")}>
-                This browser (fallback)
-              </MenuCheck>
-              <MenuSep />
-              <MenuItem icon={<Settings />} onSelect={() => navigate("/settings")}>
-                Settings and permissions
-              </MenuItem>
-              <MenuItem icon={<Upload />} onSelect={() => navigate("/")}>
-                Data sources
-              </MenuItem>
-              <MenuItem icon={<LogOut />} disabled hint="demo">
-                Sign out
-              </MenuItem>
-            </MenuContent>
-          </Menu>
+    <nav aria-label="Main" className="flex h-full flex-col gap-4 overflow-y-auto p-3">
+      <div className="space-y-0.5">
+        <P to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+        <F f="inbox" icon={Inbox} label="Inbox" n={unread("inbox")} />
+        <div className="ml-4 space-y-0.5 border-l border-line pl-2">
+          <F f="urgent" icon={AlertTriangle} label="Urgent" n={count("urgent")} />
+          <F f="requires_action" icon={UserCheck} label="Requires action" n={count("requires_action")} />
+          <F f="to_delegate" icon={Users} label="To delegate" n={count("to_delegate")} />
+          <F f="meetings" icon={CalendarClock} label="Meetings" n={count("meetings")} />
+          <F f="waiting" icon={Hourglass} label="Waiting" n={count("waiting")} />
+          <F f="promotions" icon={Tag} label="Promotions" n={count("promotions")} />
         </div>
       </div>
-      <nav className="flex gap-1 overflow-x-auto px-3 pb-2 lg:hidden">
-        {NAV.map((n) => (
-          <NavLink key={n.to} to={n.to} className={tab}>
-            <n.icon className="h-4 w-4" />
-            {n.label}
-          </NavLink>
+      <div className="space-y-0.5">
+        <P to="/tasks" icon={ListTodo} label="Tasks" n={pendingTasks} />
+        <P to="/calendar" icon={CalendarDays} label="Calendar" />
+        <P to="/follow-ups" icon={Clock} label="Follow-ups" n={followups} />
+      </div>
+      <div className="space-y-0.5">
+        <F f="drafts" icon={FileEdit} label="Drafts" n={count("drafts")} />
+        <F f="sent" icon={Send} label="Sent" />
+        <F f="archive" icon={Archive} label="Archive" />
+        <F f="spam" icon={ShieldAlert} label="Spam" n={count("spam")} />
+      </div>
+      <div>
+        <div className="label-xs px-2.5 pb-1">Accounts</div>
+        {view.accounts.map((a) => (
+          <Link key={a.id} to={`/inbox?account=${encodeURIComponent(a.id)}`} onClick={onNavigate} className={item(account === a.id)}>
+            <ProviderMark provider={a.provider} size="xs" />
+            <span className="min-w-0 flex-1 truncate">{a.address}</span>
+            {a.mode === "demo" && <span className="text-[10px] uppercase tracking-wide text-amber-600">demo</span>}
+          </Link>
         ))}
-      </nav>
+        <Link to="/settings" onClick={onNavigate} className="mt-1 block px-2.5 text-xs font-medium text-brand hover:underline">
+          + Connect an account
+        </Link>
+      </div>
+      <div className="mt-auto">
+        <P to="/settings" icon={Settings} label="Settings" />
+      </div>
+    </nav>
+  );
+}
+
+function TopBar({ onSearch, onMenu }: { onSearch: () => void; onMenu: () => void }) {
+  const { theme, setTheme, role, setRole, prefs } = useApp();
+  return (
+    <header className="z-30 flex h-14 shrink-0 items-center gap-3 bg-nav px-3 text-white">
+      <button onClick={onMenu} className="grid h-9 w-9 place-items-center rounded-lg text-white/70 hover:bg-white/10 lg:hidden" aria-label="Open navigation">
+        <MenuIcon className="h-5 w-5" />
+      </button>
+      <Link to="/dashboard" className="flex items-center gap-2">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-indigo-400 to-violet-500 shadow-sm">
+          <Inbox className="h-4 w-4" />
+        </span>
+        <span className="text-[15px] font-semibold tracking-tight">Triagedesk</span>
+      </Link>
+      <button onClick={onSearch} className="mx-auto hidden h-9 w-full max-w-md items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white/55 hover:bg-white/10 md:flex">
+        <Search className="h-4 w-4" />
+        Search mail, tasks and pages…
+        <span className="ml-auto rounded border border-white/15 px-1.5 py-px font-mono text-[10px]">Ctrl K</span>
+      </button>
+      <div className="ml-auto flex items-center gap-1.5 md:ml-0">
+        <button onClick={onSearch} className="grid h-9 w-9 place-items-center rounded-lg text-white/70 hover:bg-white/10 md:hidden" aria-label="Search">
+          <Search className="h-4 w-4" />
+        </button>
+        <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="grid h-9 w-9 place-items-center rounded-lg text-white/70 hover:bg-white/10" aria-label="Toggle theme">
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
+        <Menu>
+          <MenuTrigger asChild>
+            <button className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 hover:bg-white/10" aria-label="Account and role">
+              <Avatar name={prefs.name} size="sm" />
+              <span className="hidden text-left leading-tight sm:block">
+                <span className="block text-xs font-medium">{prefs.name}</span>
+                <span className="block text-[10px] text-white/55">{ROLES[role].label}</span>
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 text-white/50" />
+            </button>
+          </MenuTrigger>
+          <MenuContent>
+            <MenuLabel>Act as</MenuLabel>
+            {(Object.keys(ROLES) as Role[]).map((r) => (
+              <MenuCheck key={r} checked={role === r} onSelect={() => setRole(r)}>
+                <span>
+                  <span className="block font-medium">{ROLES[r].label}</span>
+                  <span className="block max-w-[15rem] text-xs text-muted">{ROLES[r].description}</span>
+                </span>
+              </MenuCheck>
+            ))}
+          </MenuContent>
+        </Menu>
+      </div>
     </header>
   );
 }
 
 export default function App() {
-  const { boot, booted, apiStatus, notice, theme } = useTriage();
+  const theme = useApp((s) => s.theme);
   const { pathname } = useLocation();
   const [paletteOpen, setPaletteOpen] = useCommandPalette();
-  const fullBleed = pathname.startsWith("/inbox") || pathname.startsWith("/mail");
-  useEffect(() => {
-    boot();
-  }, [boot]);
+  const [menu, setMenu] = useState(false);
+  const fullBleed = pathname.startsWith("/inbox");
 
   return (
     <TipProvider>
-      <div className={cn("flex flex-col bg-canvas", fullBleed ? "h-screen" : "min-h-screen")}>
-        <TopBar onSearch={() => setPaletteOpen(true)} />
-        {notice && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-900 dark:text-amber-200">
-            <Database className="h-4 w-4" /> {notice}
-          </div>
-        )}
-        <main className={fullBleed ? "min-h-0 flex-1" : "mx-auto w-full max-w-7xl px-4 py-6 lg:px-8"}>
-          {!booted ? (
-            <div className="grid h-64 place-items-center text-sm text-muted">{apiStatus === "waking" ? "Waking the API. The free hosting tier can take up to a minute…" : "Loading…"}</div>
-          ) : (
-            <Routes>
-              <Route path="/" element={<ImportPage />} />
-              <Route path="/mail" element={<MailPage />} />
-              <Route path="/inbox" element={<WorkspacePage />} />
-              <Route path="/inbox/:key" element={<WorkspacePage />} />
-              <Route path="/insights" element={<InsightsPage />} />
-              <Route path="/playground" element={<PlaygroundPage />} />
-              <Route path="/review" element={<ReviewPage />} />
-              <Route path="/judge" element={<JudgePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/try" element={<Navigate to="/playground" replace />} />
-              <Route path="/triage" element={<Navigate to="/inbox" replace />} />
-              <Route path="/thread/:key" element={<ThreadRedirect />} />
-            </Routes>
+      <div className="flex h-screen flex-col bg-canvas">
+        <TopBar onSearch={() => setPaletteOpen(true)} onMenu={() => setMenu(true)} />
+        <div className="flex min-h-0 flex-1">
+          <aside className="hidden w-60 shrink-0 border-r border-line bg-surface lg:block">
+            <Sidebar />
+          </aside>
+          {menu && (
+            <div className="fixed inset-0 z-40 lg:hidden">
+              <div className="absolute inset-0 bg-nav/40" onClick={() => setMenu(false)} />
+              <aside className="absolute inset-y-0 left-0 w-72 bg-surface shadow-pop">
+                <button onClick={() => setMenu(false)} className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-lg hover:bg-subtle" aria-label="Close navigation">
+                  <X className="h-4 w-4" />
+                </button>
+                <Sidebar onNavigate={() => setMenu(false)} />
+              </aside>
+            </div>
           )}
-        </main>
+          <main className={cn("min-w-0 flex-1", fullBleed ? "min-h-0" : "overflow-y-auto")}>
+            <div className={fullBleed ? "h-full" : "mx-auto w-full max-w-6xl px-4 py-6 lg:px-8"}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/inbox" element={<InboxPage />} />
+                <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
+                <Route path="/follow-ups" element={<FollowupsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </div>
+          </main>
+        </div>
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
         <Toaster position="bottom-right" theme={theme} richColors closeButton />
         <span className="sr-only">
