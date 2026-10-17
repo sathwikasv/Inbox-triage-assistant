@@ -155,6 +155,17 @@ describe("drafts and previews", () => {
     expect(r.json.result.decisions).toEqual(before);
   });
 
+  it("thread actions are audit-only; quarantine can be escalated but never archived", async () => {
+    const { json } = await call("POST", "/runs", fixture);
+    const esc = await call("POST", `/runs/${json.runId}/actions`, { thread_key: "T-missing-ids", action: "escalate", to: "Ops lead", note: "needs an owner" });
+    expect(esc.status).toBe(200);
+    expect(esc.json.audit.at(-1)).toMatchObject({ type: "escalate", thread_key: "T-missing-ids" });
+    expect(esc.json.audit.at(-1).detail).toContain("Ops lead: needs an owner (recorded; no message sent)");
+    expect((await call("POST", `/runs/${json.runId}/actions`, { thread_key: "QUARANTINE", action: "archive" })).status).toBe(409);
+    expect((await call("POST", `/runs/${json.runId}/actions`, { thread_key: "QUARANTINE", action: "escalate" })).status).toBe(200);
+    expect((await call("POST", `/runs/${json.runId}/actions`, { thread_key: "T-export", action: "send" })).status).toBe(400);
+  });
+
   it("save marks the run reviewed and it reloads from the database", async () => {
     const { json } = await call("POST", "/runs", fixture);
     await call("POST", `/runs/${json.runId}/save`);
