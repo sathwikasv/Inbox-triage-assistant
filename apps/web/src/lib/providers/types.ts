@@ -72,7 +72,7 @@ export function tidyText(t: string): string {
   return t
     .replace(/\r\n?/g, "\n")
     .replace(/\[image:[^\]]*\]/gi, "")
-    .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
+    .replace(/\u00a0|\u200b|\u200c|\u200d|\ufeff/g, " ")
     .split("\n")
     .map((l) => l.replace(/[ \t]+/g, " ").trim())
     .join("\n")
