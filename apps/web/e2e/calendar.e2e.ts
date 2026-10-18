@@ -32,7 +32,8 @@ async function setup(page: Page, opts: { calendarScope: boolean; mail?: { subjec
       calls.list++;
       return route.fulfill({ json: { items: [{ id: "e1", summary: "Career Corner Meeting", start: { dateTime: tomorrow.toISOString() }, end: { dateTime: end.toISOString() } }, { id: "e2", summary: "Founders' Day", start: { date: tomorrow.toISOString().slice(0, 10) }, end: { date: new Date(tomorrow.getTime() + 86_400_000).toISOString().slice(0, 10) } }] } });
     }
-    return route.fulfill({ json: { id: "riya@gmail.com" } });
+    // Google refuses calendar metadata to a token that only has the calendar.events permission; the app must not ask.
+    return route.fulfill({ status: 403, json: { error: { message: "Request had insufficient authentication scopes." } } });
   });
   await page.goto("/");
   await page.evaluate((api) => {
