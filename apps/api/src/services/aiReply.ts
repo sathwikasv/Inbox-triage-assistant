@@ -43,6 +43,14 @@ export function factsOf(req: Pick<ReplyRequest, "subject" | "messages">): { fact
   return { facts: r.threads.find((t) => t.thread_key !== "QUARANTINE") ?? null, dates };
 }
 
+/** Whether the rules read any of the inbound messages as an attempt to instruct the assistant (quarantine). */
+export function looksInjected(req: Pick<ReplyRequest, "subject" | "messages">): boolean {
+  const inbound = req.messages.filter((m) => m.direction === "inbound");
+  if (!inbound.length) return false;
+  const r = runTriage({ case_id: "C16", records: { emails: inbound.map((m, i) => ({ email_id: `M${i + 1}`, subject: req.subject || "-", body: m.body || "(empty)", received_at: m.received_at, thread_id: "reply" })), policy: { draft_only: true, auto_send: false } } });
+  return r.decisions.some((d) => d.purpose === "injection");
+}
+
 export function factSheet(t: ThreadFacts | null): string {
   if (!t) return "No extracted facts.";
   return [

@@ -32,8 +32,8 @@ export function createApp() {
 
   app.use((_req, res) => res.status(404).json({ error: "not found" }));
   // Malformed JSON bodies and unexpected errors come back as JSON, never as an HTML stack trace.
-  app.use((err: Error & { type?: string; status?: number }, _req: Request, res: Response, _next: NextFunction) => {
-    if (err.type === "entity.parse.failed") return res.status(400).json({ error: "invalid fixture", issues: [{ path: "(body)", message: "not valid JSON" }] });
+  app.use((err: Error & { type?: string; status?: number }, req: Request, res: Response, _next: NextFunction) => {
+    if (err.type === "entity.parse.failed") return res.status(400).json({ error: req.path.startsWith("/runs") ? "invalid fixture" : "invalid request", issues: [{ path: "(body)", message: "not valid JSON" }] });
     if (err.type === "entity.too.large") return res.status(413).json({ error: "file too large (limit 2 MB)" });
     console.error(err);
     return res.status(500).json({ error: "internal error" });
