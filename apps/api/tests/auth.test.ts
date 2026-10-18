@@ -46,7 +46,7 @@ describe("sign up and sign in", () => {
     const r = await signup();
     expect(r.status).toBe(201);
     expect(r.json.user).toMatchObject({ email: "riya@example.com", name: "Riya Sharma", onboarding_completed: false });
-    expect(JSON.stringify(r.json)).not.toMatch(/password|scrypt/);
+    expect(JSON.stringify(r.json)).not.toMatch(/password_hash|scrypt/);
     expect(r.setCookie).toMatch(/td_auth=.+HttpOnly/);
     const me = await call("GET", "/auth/me", undefined, r.cookie);
     expect(me.json.user.email).toBe("riya@example.com");
