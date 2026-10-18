@@ -76,3 +76,36 @@ test("settings lists the accounts by company, lets the company be renamed, and n
   await expect(page.getByRole("button", { name: /Connect other Gmail account/ })).toBeEnabled();
   await expect(page.getByRole("button", { name: /Connect Gmail/ })).toBeEnabled();
 });
+
+test("a signed-in person never sees demo mail, even with a stale demo flag and Gmail not loaded; the chart opens their own category", async ({ page }) => {
+  await page.unroute("http://multi.test/**");
+  await page.route(`${API}/**`, async (route) => {
+    const u = new URL(route.request().url());
+    if (u.pathname === "/ai/status") return route.fulfill({ json: { enabled: false, model: null } });
+    if (u.pathname === "/auth/me") return route.fulfill({ json: { user: { id: "u1", email: "riya@fynd.com", name: "Riya Sharma", timezone: "Asia/Kolkata", use: "both", onboarding_completed: true, has_password: false, google: { email: "riya@fynd.com", gmail: true }, google_accounts: ACCOUNTS, created_at: "2026-10-18T10:00:00Z" } } });
+    if (u.pathname === "/auth/google/token") return route.fulfill({ status: 409, json: { error: "Google access ended" } }); // Gmail cannot load
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.evaluate(() => {
+    localStorage.setItem("c16.demo", "true"); // left over from "Explore a demo inbox"
+    localStorage.setItem("c16.guest", "true");
+  });
+  await page.goto("/dashboard");
+  await expect(page.getByText("Connect your mailboxes").first()).toBeVisible();
+  await expect(page.getByText(/\.demo/)).toHaveCount(0);
+  await page.goto("/inbox?view=urgent");
+  await expect(page.locator("li[data-thread]")).toHaveCount(0);
+  await expect(page.getByText(/\.demo/)).toHaveCount(0);
+});
+
+test("clicking a category in the dashboard chart opens that category of the person's own mail", async ({ page }) => {
+  await page.goto("/dashboard");
+  const chart = page.locator("section", { hasText: "Inbox breakdown" });
+  await expect(chart).toBeVisible();
+  await chart.getByRole("button").nth(1).click(); // the first category in the chart legend
+  await expect(page).toHaveURL(/\/inbox\?view=/);
+  const rows = page.locator("li[data-thread]");
+  await expect(rows.first()).toBeVisible();
+  for (const text of await rows.allInnerTexts()) expect(text).toMatch(/Q3 budget numbers|Acme contract review/); // only the connected Gmail accounts' mail
+  await expect(page.getByText(/\.demo/)).toHaveCount(0);
+});

@@ -20,6 +20,7 @@ import { DEMO_EVENTS, DEMO_MAILBOX } from "../lib/demoMailbox";
 import { CALENDAR_PROVIDERS, MAIL_PROVIDERS, serverGmailAccounts, setting } from "../lib/providers";
 import { useApp } from "./app";
 import { useAssistant } from "./assistant";
+import { useAuth } from "./auth";
 
 const STATE_KEY = "c16.mailbox.state.v1";
 const IMPORT_KEY = "c16.mailbox.imported.v1";
@@ -352,25 +353,29 @@ export function useMailboxView(): MailboxView {
   const { state, imported, connected, calendars } = useMailbox();
   const prefs = useApp((s) => s.prefs);
   const results = useAssistant((s) => s.results);
+  // The fictional demo mailboxes are for visitors without an account. Someone signed in sees only their own mail,
+  // even if the browser still carries a demo flag from an earlier visit; with nothing loaded they get a connect prompt.
+  const signedIn = useAuth((s) => s.status === "signed_in");
+  const showDemo = prefs.showDemo && !signedIn;
   return useMemo(() => {
-    const deps = [state, imported, connected, calendars, prefs, results];
+    const deps = [state, imported, connected, calendars, prefs, results, signedIn];
     if (shared && shared.deps.every((d, i) => d === deps[i])) return shared.view;
     const view = analyse();
     shared = { deps, view };
     return view;
     function analyse() {
-    const boxes = [...(prefs.showDemo ? [{ accounts: DEMO_MAILBOX.accounts, messages: DEMO_MAILBOX.messages }] : []), ...[...imported, ...connected].map((b) => ({ accounts: [b.account], messages: b.messages }))];
+    const boxes = [...(showDemo ? [{ accounts: DEMO_MAILBOX.accounts, messages: DEMO_MAILBOX.messages }] : []), ...[...imported, ...connected].map((b) => ({ accounts: [b.account], messages: b.messages }))];
     const data: MailboxData = {
       user: { name: prefs.name, timezone: prefs.timezone, addresses: [...DEMO_MAILBOX.user.addresses, ...[...imported, ...connected].map((b) => b.account.address)] },
       accounts: boxes.flatMap((b) => b.accounts),
       messages: boxes.flatMap((b) => b.messages),
     };
-    const live = connected.length > 0 || imported.length > 0 || !prefs.showDemo;
-    const external = [...(prefs.showDemo ? DEMO_EVENTS : []), ...calendars.flatMap((c) => c.events)];
+    const live = connected.length > 0 || imported.length > 0 || !showDemo;
+    const external = [...(showDemo ? DEMO_EVENTS : []), ...calendars.flatMap((c) => c.events)];
     const merged = { ...state, events: [...state.events, ...external.filter((e) => !state.events.some((x) => x.id === e.id))] };
     // The AI assistant's category opinions, for the conversations it has read.
     const aiCategories = Object.fromEntries(Object.values(results).filter((r) => r.category).map((r) => [r.lead_message, { category: r.category!, reason: r.category_reason ?? "it read the whole conversation" }]));
     return buildMailboxView(data, merged, { now: live ? new Date().toISOString() : DEMO_MAILBOX.demo_clock, aiCategories });
     }
-  }, [state, imported, connected, calendars, prefs, results]);
+  }, [state, imported, connected, calendars, prefs, results, signedIn]);
 }
