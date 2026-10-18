@@ -24,6 +24,7 @@ async function setup(page: Page, opts: { model: boolean; enabled: boolean; assis
       localStorage.clear();
       localStorage.setItem("c16.api_url", api);
       localStorage.setItem("c16.demo", "true"); // keep the labelled demo mailboxes for this test
+      localStorage.setItem("c16.guest", "true"); // no account: these tests are about the assistant
       localStorage.setItem("c16.ai.enabled", JSON.stringify(enabled));
     },
     { api: API, enabled: opts.enabled },

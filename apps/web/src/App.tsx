@@ -10,6 +10,9 @@ import {
   FilePen,
   HelpCircle,
   Inbox,
+  LogIn,
+  LogOut,
+  Rocket,
   Loader2,
   MessageSquareWarning,
   LayoutDashboard,
@@ -34,6 +37,10 @@ import TasksPage from "./pages/TasksPage";
 import CalendarPage from "./pages/CalendarPage";
 import FollowupsPage from "./pages/FollowupsPage";
 import SettingsPage from "./pages/SettingsPage";
+import LandingPage from "./pages/LandingPage";
+import AuthPage from "./pages/AuthPage";
+import { OnboardingDialog, useSetupGuide } from "./components/OnboardingDialog";
+import { canEnter, useAuth } from "./store/auth";
 import { CommandPalette, useCommandPalette } from "./components/CommandPalette";
 import { ShortcutsDialog } from "./components/ShortcutsDialog";
 import { NotificationBell } from "./components/NotificationBell";
@@ -242,6 +249,8 @@ function TopBar({ onPalette, onMenu, onHelp }: { onPalette: () => void; onMenu: 
   const view = useMailboxView();
   const demo = view.accounts.some((a) => a.mode === "demo");
   const assistant = useAssistant();
+  const auth = useAuth();
+  const setup = useSetupGuide();
   const navigate = useNavigate();
   const icon = "grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-fg/[0.08] hover:text-fg";
   return (
@@ -310,6 +319,7 @@ function TopBar({ onPalette, onMenu, onHelp }: { onPalette: () => void; onMenu: 
               <Avatar name={prefs.name} size="lg" />
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold">{prefs.name}</div>
+                <div className="truncate text-xs text-muted">{auth.user ? auth.user.email : auth.guest ? "Not signed in · this browser only" : ROLES[role].label}</div>
                 <div className="text-xs text-muted">
                   {view.accounts.length} mailbox{view.accounts.length === 1 ? "" : "es"} · {ROLES[role].label}
                 </div>
@@ -329,6 +339,28 @@ function TopBar({ onPalette, onMenu, onHelp }: { onPalette: () => void; onMenu: 
             <MenuItem icon={<Settings />} onSelect={() => navigate("/settings")}>
               Manage mailboxes
             </MenuItem>
+            {auth.user ? (
+              <>
+                <MenuItem icon={<Rocket />} onSelect={() => setup.show()}>
+                  Setup guide
+                </MenuItem>
+                <MenuItem
+                  icon={<LogOut />}
+                  onSelect={async () => {
+                    await auth.logout();
+                    navigate("/login");
+                  }}
+                >
+                  Sign out
+                </MenuItem>
+              </>
+            ) : (
+              auth.reason !== "no-server" && (
+                <MenuItem icon={<LogIn />} onSelect={() => navigate("/login")}>
+                  Sign in or create an account
+                </MenuItem>
+              )
+            )}
           </MenuContent>
         </Menu>
       </div>
@@ -336,8 +368,7 @@ function TopBar({ onPalette, onMenu, onHelp }: { onPalette: () => void; onMenu: 
   );
 }
 
-export default function App() {
-  const theme = useApp((s) => s.theme);
+function Shell() {
   const { prefs, setPrefs } = useApp();
   const [paletteOpen, setPaletteOpen] = useCommandPalette();
   const [menu, setMenu] = useState(false);
@@ -365,7 +396,6 @@ export default function App() {
   }, []);
 
   return (
-    <TipProvider>
       <div className="flex h-screen flex-col bg-canvas">
         <TopBar
           onPalette={() => setPaletteOpen(true)}
@@ -391,7 +421,6 @@ export default function App() {
             <div className={cn("h-full rounded-none bg-surface sm:rounded-2xl", fullBleed ? "overflow-hidden" : "overflow-y-auto")}>
               <div className={fullBleed ? "h-full" : "mx-auto w-full max-w-7xl px-4 py-6 lg:px-8"}>
                 <Routes>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/inbox" element={<InboxPage />} />
                   <Route path="/tasks" element={<TasksPage />} />
@@ -405,10 +434,53 @@ export default function App() {
           </main>
         </div>
         <AssistantAgent />
+        <OnboardingDialog />
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
         <ShortcutsDialog open={help} onOpenChange={setHelp} />
-        <Toaster position="bottom-left" theme={theme} richColors closeButton />
       </div>
+  );
+}
+
+function Splash() {
+  return (
+    <div className="grid h-screen place-items-center bg-canvas">
+      <div className="flex flex-col items-center gap-3 text-sm text-muted">
+        <span className="grid h-12 w-12 animate-pulse place-items-center rounded-2xl bg-gradient-to-br from-[#0B57D0] via-[#7c4dff] to-[#e5484d] text-white shadow-pop">
+          <Mail className="h-6 w-6" />
+        </span>
+        Opening Triagedesk…
+      </div>
+    </div>
+  );
+}
+
+/** The app itself needs an account, unless the person chose to continue without one (or there is no server at all). */
+function RequireAccess() {
+  const auth = useAuth();
+  const location = useLocation();
+  if (auth.status === "loading") return <Splash />;
+  if (!canEnter(auth)) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  return <Shell />;
+}
+
+export default function App() {
+  const auth = useAuth();
+  useEffect(() => {
+    auth.init();
+  }, []);
+  const theme = useApp((s) => s.theme);
+  const home = auth.status === "loading" ? <Splash /> : auth.status === "signed_in" ? <Navigate to="/dashboard" replace /> : <LandingPage />;
+  return (
+    <TipProvider>
+      <Routes>
+        <Route path="/" element={home} />
+        <Route path="/login" element={<AuthPage mode="login" />} />
+        <Route path="/signup" element={<AuthPage mode="signup" />} />
+        <Route path="/forgot" element={<AuthPage mode="forgot" />} />
+        <Route path="/reset" element={<AuthPage mode="reset" />} />
+        <Route path="/*" element={<RequireAccess />} />
+      </Routes>
+      <Toaster position="bottom-left" theme={theme} richColors closeButton />
     </TipProvider>
   );
 }

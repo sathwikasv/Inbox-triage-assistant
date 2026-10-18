@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Ban, CalendarDays, Check, Download, KeyRound, Loader2, Lock, Minus, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, UploadCloud, Users } from "lucide-react";
 import { useAssistant } from "../store/assistant";
 import { useReviewItems } from "../lib/review";
+import { useAuth } from "../store/auth";
 import { fixtureToCsv, type Role } from "@c16/core";
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
@@ -250,6 +251,9 @@ function Integrations() {
 
 function Preferences() {
   const { prefs, setPrefs, theme, setTheme } = useApp();
+  const auth = useAuth();
+  // Signed in: the account keeps the name and zone, so they follow the person to any browser.
+  const save = (p: { name?: string; timezone?: string }) => (auth.user ? auth.update(p) : setPrefs(p));
   const [name, setName] = useState(prefs.name);
   return (
     <Card title="Preferences" description="Dates in email are read in the sender's timezone and shown in yours; if they differ you are asked to confirm.">
@@ -259,7 +263,7 @@ function Preferences() {
             Your name
           </label>
           <input id="name" value={name} onChange={(e) => setName(e.target.value)} className="rounded-lg border border-line bg-canvas/40 px-2.5 py-1.5 outline-none" />
-          <Button size="sm" variant="primary" disabled={!name.trim() || name === prefs.name} onClick={() => setPrefs({ name: name.trim() })}>
+          <Button size="sm" variant="primary" disabled={!name.trim() || name === prefs.name} onClick={() => save({ name: name.trim() })}>
             Save
           </Button>
         </div>
@@ -267,7 +271,7 @@ function Preferences() {
           <label className="w-40 font-medium" htmlFor="tz">
             Timezone
           </label>
-          <select id="tz" value={prefs.timezone} onChange={(e) => setPrefs({ timezone: e.target.value })} className="rounded-lg border border-line bg-surface px-2 py-1.5">
+          <select id="tz" value={prefs.timezone} onChange={(e) => save({ timezone: e.target.value })} className="rounded-lg border border-line bg-surface px-2 py-1.5">
             {[...new Set([prefs.timezone, ...ZONES])].map((z) => (
               <option key={z} value={z}>
                 {z}
