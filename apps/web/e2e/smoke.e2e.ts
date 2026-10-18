@@ -53,7 +53,7 @@ test("a meeting request becomes a calendar event after confirming, with the clas
   await expect(page.getByText(/Clashes with: Vendor call: Sunrise Traders/)).toBeVisible();
   await page.getByRole("button", { name: "Add to calendar" }).first().click();
   await page.goto("/calendar");
-  await expect(page.locator("div", { hasText: /^Quick sync on the pilot$/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Quick sync on the pilot/ }).first()).toBeVisible();
 });
 
 test("a reply with an invented attachment is blocked; a sensitive reply needs an extra confirmation and survives a reload", async ({ page }) => {

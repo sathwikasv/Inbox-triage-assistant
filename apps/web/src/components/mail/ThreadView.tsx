@@ -39,6 +39,7 @@ import {
   formatDate,
   lintReply,
   offsetLabel,
+  zoneOffset,
   rejectProposal,
   replyHeaders,
   saveReplyDraft,
@@ -56,6 +57,7 @@ import {
   type TaskItem,
 } from "@c16/core";
 import { useApp } from "../../store/app";
+import { convertWall, zoneAbbr, zoneUtcLabel } from "../../lib/time";
 import { useMailbox } from "../../store/mailbox";
 import { aiReply, aiStatus } from "../../lib/ai";
 import { useThreadActions } from "../../lib/threadActions";
@@ -63,7 +65,7 @@ import { lastMessageId, useAssistant } from "../../store/assistant";
 import { AssistantCard } from "./AssistantCard";
 import { EmailFrame } from "./EmailFrame";
 import { Badge, Button, Dialog, Segmented, Tip, cn } from "../../ui";
-import { CAT, CATS, CategoryBadge, PriorityBadge, ProviderMark, SenderAvatar, accountNote, addrList, addrText, ago, localTime, nameOf } from "./common";
+import { CAT, CATS, CategoryBadge, PriorityBadge, ProviderMark, SenderAvatar, timeRange, whenIso, accountNote, addrList, addrText, ago, localTime, nameOf } from "./common";
 
 const now = () => new Date().toISOString();
 const FACT_LABEL: Record<string, string> = { task: "the task", due: "the deadline", owner: "the owner", status: "the status", reference: "the tracker", blocker: "a blocker", resolution: "the resolution", attachment_claim: "an attachment claim", injection: "an instruction-like request", constraint: "a constraint", commitment: "a promise", clarify: "a question", escalation: "the escalation" };
@@ -435,7 +437,15 @@ function MessageBody({ view, m, provider, highlight, isLead, threadSubject }: { 
   );
 }
 
+/** "20 October 2026 at 15:00 IST", converted from wherever the deadline was written. */
+function dueText(due: NonNullable<TaskItem["due"]>, tz: string) {
+  if (!due.time) return formatDate(due.date);
+  const w = convertWall(due.date, due.time, due.tz_offset, tz);
+  return `${formatDate(w.date)} at ${w.time} ${zoneAbbr(tz)}`;
+}
+
 function TaskCard({ task }: { task: TaskItem }) {
+  const tz = useApp((s) => s.prefs.timezone);
   const apply = useMailbox((s) => s.apply);
   const actor = useApp((s) => s.prefs.name);
   return (
@@ -451,7 +461,7 @@ function TaskCard({ task }: { task: TaskItem }) {
       <p className="mt-2.5 text-sm font-medium">{task.title}</p>
       <dl className="mt-2 grid grid-cols-[4.5rem_1fr] gap-y-1 text-xs">
         <dt className="text-muted">Due</dt>
-        <dd className={cn(task.overdue && "font-medium text-rose-600")}>{task.due ? `${formatDate(task.due.date)}${task.due.time ? ` at ${task.due.time}` : ""} (UTC${offsetLabel(task.due.tz_offset)})` : (task.due_note ?? "no deadline given")}</dd>
+        <dd className={cn(task.overdue && "font-medium text-rose-600")}>{task.due ? dueText(task.due, tz) : (task.due_note ?? "no deadline given")}</dd>
         <dt className="text-muted">Owner</dt>
         <dd>{task.owner ?? "not stated"}</dd>
       </dl>
@@ -490,8 +500,16 @@ function TaskCard({ task }: { task: TaskItem }) {
 export function ProposalCard({ view, proposal }: { view: MailboxView; proposal: EventProposal }) {
   const { apply, addToCalendar, busy, calendars } = useMailbox();
   const actor = useApp((s) => s.prefs.name);
-  const [date, setDate] = useState(proposal.when?.date ?? "");
-  const [timeV, setTimeV] = useState(proposal.when?.time ?? "");
+  const tz = useApp((s) => s.prefs.timezone);
+  const w = proposal.when;
+  // The email's time is in the sender's zone; the card and its date/time boxes use the person's own zone.
+  const mine = w?.time ? convertWall(w.date, w.time, w.tz_offset, tz) : null;
+  const mineEnd = w?.time && w.end_time ? convertWall(w.date, w.end_time, w.tz_offset, tz) : null;
+  const userOffset = w ? zoneOffset(tz, new Date(`${w.date}T12:00:00Z`)) : 0;
+  const converted = !!w?.time && w.tz_offset !== userOffset;
+  const shownDate = mine?.date ?? w?.date ?? "";
+  const [date, setDate] = useState(shownDate);
+  const [timeV, setTimeV] = useState(mine?.time ?? "");
   const [duration, setDuration] = useState(String(proposal.duration_min ?? 30));
   const [reminder, setReminder] = useState("15");
   const kindLabel = { meeting_request: "Meeting request", invitation: "Invitation", confirmation: "Confirmed appointment", reschedule: "Reschedule request", cancellation: "Cancellation" }[proposal.kind];
@@ -509,12 +527,21 @@ export function ProposalCard({ view, proposal }: { view: MailboxView; proposal: 
       {proposal.when ? (
         <div className="mt-2 flex items-center gap-3">
           <span className="grid w-12 shrink-0 overflow-hidden rounded-lg border border-line text-center shadow-card">
-            <span className="bg-rose-500 text-[9px] font-bold uppercase leading-4 text-white">{new Date(`${proposal.when.date}T12:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" })}</span>
-            <span className="py-0.5 text-lg font-semibold leading-6">{Number(proposal.when.date.slice(8, 10))}</span>
+            <span className="bg-rose-500 text-[9px] font-bold uppercase leading-4 text-white">{new Date(`${shownDate}T12:00:00Z`).toLocaleString("en", { month: "short", timeZone: "UTC" })}</span>
+            <span className="py-0.5 text-lg font-semibold leading-6">{Number(shownDate.slice(8, 10))}</span>
           </span>
           <span className="text-xs text-muted">
-            <span className="block font-medium text-fg">{formatDate(proposal.when.date)}</span>
-            {proposal.when.time ? `${proposal.when.time}${proposal.when.end_time ? `–${proposal.when.end_time}` : ""}` : "No time given"} (UTC{offsetLabel(proposal.when.tz_offset)})
+            <span className="block font-medium text-fg">{formatDate(shownDate)}</span>
+            {mine
+              ? mineEnd
+                ? timeRange(whenIso(mine.date, mine.time, userOffset), whenIso(mineEnd.date, mineEnd.time, userOffset), tz)
+                : `${mine.time} ${zoneAbbr(tz)}`
+              : `No time given (UTC${offsetLabel(proposal.when.tz_offset)})`}
+            {converted && (
+              <span className="mt-0.5 block text-[11px]">
+                Converted to {zoneAbbr(tz)} ({zoneUtcLabel(tz, new Date(`${w!.date}T12:00:00Z`))}) from sender's timezone (UTC{offsetLabel(proposal.when.tz_offset)})
+              </span>
+            )}
           </span>
         </div>
       ) : (

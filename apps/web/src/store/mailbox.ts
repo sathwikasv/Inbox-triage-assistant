@@ -95,6 +95,10 @@ interface MailboxStore {
   enableSend(accountId: string): Promise<void>;
   send(view: MailboxView, threadKey: string, confirmed: string[]): Promise<boolean>;
   connectCalendar(calendar: "google"): Promise<void>;
+  /** Pulls the latest events from every connected calendar (the Sync button). */
+  refreshCalendars(): Promise<void>;
+  /** After a reload: reconnects calendars the server still holds a grant for. */
+  restoreCalendars(): Promise<void>;
   addToCalendar(view: MailboxView, proposalId: string, edits: Parameters<typeof acceptProposal>[3]): Promise<boolean>;
   importFile(text: string, name: string): boolean;
   removeImport(accountId: string): void;
@@ -211,6 +215,7 @@ export const useMailbox = create<MailboxStore>((set, get) => {
       set({ busy: { ...get().busy, "connect:gmail": true } });
       try {
         for (const r of await gmail.restoreAll()) if (!get().connected.some((c) => c.account.id === r.account.id)) connected(r);
+        await get().restoreCalendars();
       } catch {
         /* the reconnect bar offers one click */
       } finally {
@@ -281,6 +286,22 @@ export const useMailbox = create<MailboxStore>((set, get) => {
         useApp.getState().toast(`${client.label} connected: ${r.events.length} events loaded`);
       }),
 
+    refreshCalendars: () =>
+      busy("calendar:refresh", async () => {
+        const next: CalendarLink[] = [];
+        for (const link of get().calendars) next.push({ ...link, events: await CALENDAR_PROVIDERS[link.calendar].list() });
+        set({ calendars: next });
+        useApp.getState().toast(`Calendar synced: ${next.reduce((n, c) => n + c.events.length, 0)} events`);
+      }),
+
+    async restoreCalendars() {
+      for (const [name, client] of Object.entries(CALENDAR_PROVIDERS)) {
+        if (!client.restore || client.setupNeeded() || get().calendars.some((c) => c.calendar === name)) continue;
+        const r = await client.restore().catch(() => null);
+        if (r) set({ calendars: [...get().calendars, { calendar: name as CalendarLink["calendar"], ...r }] });
+      }
+    },
+
     async addToCalendar(view, proposalId, edits) {
       const link = get().calendars[0];
       let ok = false;
@@ -290,6 +311,9 @@ export const useMailbox = create<MailboxStore>((set, get) => {
         if (link) {
           const created = await CALENDAR_PROVIDERS[link.calendar].create(event);
           setState({ ...state, events: state.events.map((e) => (e.id === event.id ? { ...created, id: event.id } : e)) });
+          // Pull the calendar again so the new event and anything else added there shows up.
+          const events = await CALENDAR_PROVIDERS[link.calendar].list().catch(() => null);
+          if (events) set({ calendars: get().calendars.map((c) => (c.calendar === link.calendar ? { ...c, events } : c)) });
           useApp.getState().toast(`Added to ${CALENDAR_PROVIDERS[link.calendar].label}`);
         } else {
           setState(state);
@@ -371,8 +395,10 @@ export function useMailboxView(): MailboxView {
       messages: boxes.flatMap((b) => b.messages),
     };
     const live = connected.length > 0 || imported.length > 0 || !showDemo;
-    const external = [...(showDemo ? DEMO_EVENTS : []), ...calendars.flatMap((c) => c.events)];
-    const merged = { ...state, events: [...state.events, ...external.filter((e) => !state.events.some((x) => x.id === e.id))] };
+    const external = [...(showDemo && calendars.length === 0 ? DEMO_EVENTS : []), ...calendars.flatMap((c) => c.events)];
+    // An event the app created already sits in the person's own list; the calendar's copy of it is the same event.
+    const same = (a: CalendarEvent, b: CalendarEvent) => a.id === b.id || (a.title === b.title && Date.parse(a.start) === Date.parse(b.start));
+    const merged = { ...state, events: [...state.events, ...external.filter((e) => !state.events.some((x) => same(x, e)))] };
     // The AI assistant's category opinions, for the conversations it has read.
     const aiCategories = Object.fromEntries(Object.values(results).filter((r) => r.category).map((r) => [r.lead_message, { category: r.category!, reason: r.category_reason ?? "it read the whole conversation" }]));
     return buildMailboxView(data, merged, { now: live ? new Date().toISOString() : DEMO_MAILBOX.demo_clock, aiCategories });

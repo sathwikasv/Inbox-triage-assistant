@@ -241,6 +241,21 @@ export const firstName = (a: Address) => nameOf(a).split(/[\s(]/)[0];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 /** "2026-10-16T09:00:00+05:30" → "16 Oct, 09:00" in the timestamp's own zone. */
 export const shortTime = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}, ${iso.slice(11, 16)}`;
+export { toZoneIso } from "../../lib/time";
+import { zoneAbbr } from "../../lib/time";
+
+/** "03:00 PM–03:10 PM IST": a time range in the person's zone, with the zone named. */
+export function timeRange(start: string, end: string, timeZone: string) {
+  const f = (iso: string) => {
+    try {
+      return new Intl.DateTimeFormat("en-IN", { timeZone, hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(iso)).toUpperCase();
+    } catch {
+      return iso.slice(11, 16);
+    }
+  };
+  return `${f(start)}–${f(end)} ${zoneAbbr(timeZone, new Date(start))}`;
+}
+
 /** A timestamp shown in the user's zone. */
 export function localTime(iso: string, timeZone: string, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) {
   try {
@@ -249,6 +264,12 @@ export function localTime(iso: string, timeZone: string, opts: Intl.DateTimeForm
     return shortTime(iso);
   }
 }
+/** A timestamp in the user's zone with the zone named ("15:00 IST"); the title says what it was converted from. */
+export function localTimeZoned(iso: string, timeZone: string, original?: string) {
+  const text = `${localTime(iso, timeZone, { hour: "2-digit", minute: "2-digit" })} ${zoneAbbr(timeZone, new Date(iso))}`;
+  return { text, title: original && original !== iso ? `Converted from ${original}` : undefined };
+}
+
 /** YYYY-MM-DD of an instant in a zone. */
 export function ymdIn(iso: string | number, timeZone: string) {
   try {

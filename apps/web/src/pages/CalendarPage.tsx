@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Bell, CalendarDays, ChevronLeft, ChevronRight, Clock, Loader2, Mail, MapPin, Trash2, Users, Video } from "lucide-react";
+import { AlertTriangle, Bell, CalendarDays, ChevronLeft, ChevronRight, Clock, Loader2, Mail, MapPin, RefreshCw, Trash2, Users, Video } from "lucide-react";
+import { zoneAbbr, zoneUtcLabel } from "../lib/time";
 import { completeReminder, removeEvent, setEventReminders, type CalendarEvent, type EventProposal, type MailboxView } from "@c16/core";
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
 import { CALENDAR_PROVIDERS } from "../lib/providers";
 import { ProposalCard } from "../components/mail/ThreadView";
-import { localTime, minutesIn, whenIso, ymdIn } from "../components/mail/common";
+import { localTime, minutesIn, timeRange, whenIso, ymdIn } from "../components/mail/common";
 import { Badge, Button, Dialog, Segmented, Tip, cn } from "../ui";
 
-const START = 7; // first hour shown
-const END = 21; // last hour shown
+const DEFAULT_START = 7; // the grid shows at least these hours, and grows when an event falls outside them
+const DEFAULT_END = 21;
 const HOUR = 64; // px per hour
 const DAY = 86_400_000;
 
@@ -68,7 +69,7 @@ const colour = (b: Block) =>
 
 export default function CalendarPage() {
   const view = useMailboxView();
-  const { connectCalendar, calendars, busy, apply } = useMailbox();
+  const { connectCalendar, refreshCalendars, calendars, busy, apply } = useMailbox();
   const prefs = useApp((s) => s.prefs);
   const [week, setWeek] = useState(0);
   const [mode, setMode] = useState<"week" | "agenda">("week");
@@ -83,9 +84,6 @@ export default function CalendarPage() {
   const proposals = view.proposals.filter((p) => p.status === "proposed");
   const reminders = view.reminders.filter((r) => !r.done).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 
-  useEffect(() => {
-    scroller.current?.scrollTo({ top: Math.max(0, (minutesIn(nowMs, tz) / 60 - START - 1) * HOUR) });
-  }, [nowMs, tz, mode]);
 
   const blocksFor = (key: string) =>
     layout([
@@ -99,6 +97,20 @@ export default function CalendarPage() {
         })
         .filter((b) => ymdIn(b.start, tz) === key),
     ]);
+  // Hours shown: the usual day, widened when an event lands outside it in the person's zone (e.g. a late-night
+  // meeting from another time zone). An event that runs past midnight is cut at the end of its day.
+  let START = DEFAULT_START;
+  let END = DEFAULT_END;
+  for (const d of days)
+    for (const b of blocksFor(ymdIn(d, tz))) {
+      const s = minutesIn(b.start, tz);
+      const e = minutesIn(b.end, tz);
+      START = Math.min(START, Math.floor(s / 60));
+      END = Math.max(END, e <= s ? 24 : Math.ceil(e / 60));
+    }
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: Math.max(0, (minutesIn(nowMs, tz) / 60 - START - 1) * HOUR) });
+  }, [nowMs, tz, mode, START]);
   const allDay = (key: string) => view.events.filter((e) => e.all_day && ymdIn(e.start, tz) === key);
   const showProposal = (id: string) => {
     setFocus(id);
@@ -119,9 +131,14 @@ export default function CalendarPage() {
             const link = calendars.find((x) => x.calendar === c);
             const need = client.setupNeeded();
             return link ? (
-              <Badge key={c} tone="green">
-                {client.label}: {link.address}
-              </Badge>
+              <span key={c} className="inline-flex items-center gap-2">
+                <Badge tone="green">
+                  {client.label}: {link.address}
+                </Badge>
+                <Button size="sm" className="rounded-full" disabled={busy["calendar:refresh"]} onClick={() => refreshCalendars()} aria-label="Sync calendar">
+                  <RefreshCw className={cn("h-4 w-4", busy["calendar:refresh"] && "animate-spin")} /> Sync
+                </Button>
+              </span>
             ) : (
               <Tip key={c} content={need ?? `Connect ${client.label} (separate permission from mail)`}>
                 <span>
@@ -182,7 +199,12 @@ export default function CalendarPage() {
             <div ref={scroller} className="max-h-[68vh] overflow-auto">
               <div className="min-w-[48rem]">
                 <div className="sticky top-0 z-10 grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] border-b border-line bg-surface">
-                  <div />
+                  <div className="grid place-items-end px-1 pb-1.5 text-[10px] font-semibold leading-tight text-muted" title={tz}>
+                    <span>
+                      {zoneAbbr(tz)}
+                      <br />({zoneUtcLabel(tz)})
+                    </span>
+                  </div>
                   {days.map((d) => {
                     const key = ymdIn(d, tz);
                     return (
@@ -219,22 +241,34 @@ export default function CalendarPage() {
                         )}
                         {blocks.map((b) => {
                           const sMin = Math.max(minutesIn(b.start, tz), START * 60);
-                          const eMin = Math.min(Math.max(minutesIn(b.end, tz), sMin + 25), END * 60);
+                          const rawEnd = minutesIn(b.end, tz);
+                          // At least 30 minutes tall (32px) so a 10-minute meeting is still readable; past midnight, cut at the day's end.
+                          const eMin = Math.min(Math.max(rawEnd <= minutesIn(b.start, tz) ? END * 60 : rawEnd, sMin + 30), END * 60);
                           const h = ((eMin - sMin) / 60) * HOUR;
+                          const compact = h < 46; // short meeting: title and time share one line instead of two stacked ones
                           return (
                             <button
                               key={b.id}
                               onClick={() => (b.event ? setOpenEvent(b.event) : showProposal(b.id))}
-                              className={cn("absolute z-[2] overflow-hidden rounded-lg border-l-4 px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:z-[4] hover:shadow-pop", colour(b), b.clash && "ring-2 ring-rose-500", b.tentative && "border border-l-4 border-dashed")}
+                              className={cn("absolute z-[2] overflow-hidden rounded-lg border-l-4 px-1.5 text-left text-[11px] leading-tight shadow-sm transition hover:z-[4] hover:shadow-pop", colour(b), compact ? "flex items-center py-0.5" : "py-1", b.clash && "ring-2 ring-rose-500", b.tentative && "border border-l-4 border-dashed")}
                               style={{ top: ((sMin - START * 60) / 60) * HOUR + 1, height: h - 2, left: `calc(${(b.col / b.cols) * 100}% + 2px)`, width: `calc(${100 / b.cols}% - 4px)` }}
                               title={b.clash ? "Clashes with another event" : undefined}
                             >
-                              <div className="truncate font-semibold">{b.title}</div>
-                              <div className="truncate opacity-80">
-                                {b.tentative ? "Request · " : ""}
-                                {localTime(b.start, tz, { hour: "2-digit", minute: "2-digit" })}–{localTime(b.end, tz, { hour: "2-digit", minute: "2-digit" })}
-                              </div>
-                              {b.clash && h > 44 && <div className="mt-0.5 font-semibold text-rose-600 dark:text-rose-300">clash</div>}
+                              {compact ? (
+                                <div className="flex items-center justify-between gap-1 leading-none">
+                                  <span className="truncate font-semibold">{b.title}</span>
+                                  <span className="shrink-0 opacity-80">{timeRange(b.start, b.end, tz)}</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="truncate font-semibold">{b.title}</div>
+                                  <div className="truncate opacity-80">
+                                    {b.tentative ? "Request · " : ""}
+                                    {timeRange(b.start, b.end, tz)}
+                                  </div>
+                                  {b.clash && <div className="mt-0.5 font-semibold text-rose-600 dark:text-rose-300">clash</div>}
+                                </>
+                              )}
                             </button>
                           );
                         })}

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { toast as sonner } from "sonner";
 import type { Role } from "@c16/core";
 import { providersConfigured } from "../lib/providers/types";
+import { resolveUserTimezone } from "../lib/time";
 
 export type Theme = "light" | "dark";
 
@@ -22,13 +23,7 @@ const write = (k: string, v: unknown) => {
 };
 const applyTheme = (t: Theme) => document.documentElement.classList.toggle("dark", t === "dark");
 
-const browserZone = (() => {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
-  } catch {
-    return "Asia/Kolkata";
-  }
-})();
+const browserZone = resolveUserTimezone();
 
 export interface Prefs {
   name: string;
@@ -60,7 +55,7 @@ export const useApp = create<AppState>((set, get) => ({
   prefs: (() => {
     // Demo mailboxes show only until real providers are configured, unless the person chose otherwise.
     const { showDemo: _legacy, ...stored } = read<Partial<Prefs>>("c16.prefs", {});
-    return { name: "Riya Sharma", timezone: browserZone, density: "comfortable", pane: "right", rail: false, highlight: true, ...stored, showDemo: read<boolean | null>("c16.demo", null) ?? !providersConfigured() } as Prefs;
+    return { name: "Riya Sharma", density: "comfortable", pane: "right", rail: false, highlight: true, ...stored, timezone: resolveUserTimezone(stored.timezone ?? browserZone), showDemo: read<boolean | null>("c16.demo", null) ?? !providersConfigured() } as Prefs;
   })(),
   setRole(role) {
     write("c16.role", role);

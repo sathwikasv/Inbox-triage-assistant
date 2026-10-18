@@ -4,16 +4,11 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Circle, Eye, EyeOff, Inbox, Loa
 import { canEnter, useAuth, type AppUser } from "../store/auth";
 import { useApp } from "../store/app";
 import { cn } from "../ui";
+import { resolveUserTimezone } from "../lib/time";
 
 export type AuthMode = "login" | "signup" | "forgot" | "reset";
 const ZONES = ["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "Europe/Berlin", "America/New_York", "America/Chicago", "America/Los_Angeles", "Australia/Sydney", "UTC"];
-const browserZone = (() => {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata";
-  } catch {
-    return "Asia/Kolkata";
-  }
-})();
+const browserZone = resolveUserTimezone();
 
 /** The same rules the server applies, shown while typing. */
 function passwordChecks(pw: string, email: string) {
