@@ -9,7 +9,8 @@ export interface MailProviderClient {
   label: string;
   /** Why it cannot be used yet (missing client ID, server not set up), or null when ready. */
   setupNeeded(): string | null;
-  connect(): Promise<{ account: MailAccount; messages: MailMessage[] }>;
+  /** Signs an account in. Gmail always shows Google's account chooser, so a second or third account can be added; `hint` pre-selects a known address (reconnecting). */
+  connect(opts?: ConnectOptions): Promise<{ account: MailAccount; messages: MailMessage[] }>;
   refresh(account: MailAccount): Promise<MailMessage[]>;
   /** Asks the user for send permission separately from read access. */
   enableSend(account: MailAccount): Promise<void>;
@@ -17,6 +18,12 @@ export interface MailProviderClient {
   disconnect(account: MailAccount): Promise<void>;
   /** Resumes a session the provider still holds (no popup), or null. Only where a server keeps the session. */
   restore?(): Promise<{ account: MailAccount; messages: MailMessage[] } | null>;
+  /** Resumes every account the provider or server still holds (several Yahoo sessions, every Gmail linked to the login). */
+  restoreAll?(): Promise<{ account: MailAccount; messages: MailMessage[] }[]>;
+}
+
+export interface ConnectOptions {
+  hint?: string;
 }
 
 export interface OutgoingReply {
@@ -29,7 +36,7 @@ export interface OutgoingReply {
 
 /** Calendars are connected separately: connecting mail never grants calendar access. */
 export interface CalendarProviderClient {
-  calendar: "google" | "outlook";
+  calendar: "google";
   label: string;
   setupNeeded(): string | null;
   connect(): Promise<{ address: string; events: CalendarEvent[] }>;
@@ -84,10 +91,10 @@ export function tidyText(t: string): string {
 export const keepHtml = (h: string) => (h && h.length <= 300_000 ? h : undefined);
 
 /** Settings a person enters once (OAuth client IDs are public identifiers, not secrets). */
-export const CONFIG_KEYS = { google: "c16.google_client_id", microsoft: "c16.ms_client_id", api: "c16.api_url" } as const;
+export const CONFIG_KEYS = { google: "c16.google_client_id", api: "c16.api_url" } as const;
 
 export function setting(key: keyof typeof CONFIG_KEYS): string {
-  const env = { google: import.meta.env.VITE_GOOGLE_CLIENT_ID, microsoft: import.meta.env.VITE_MS_CLIENT_ID, api: import.meta.env.VITE_API_URL }[key] as string | undefined;
+  const env = { google: import.meta.env.VITE_GOOGLE_CLIENT_ID, api: import.meta.env.VITE_API_URL }[key] as string | undefined;
   let v: string;
   try {
     v = localStorage.getItem(CONFIG_KEYS[key]) || env || "";
@@ -99,7 +106,7 @@ export function setting(key: keyof typeof CONFIG_KEYS): string {
 }
 
 /** True once any real provider or the server is configured: the app then works on real mail, not demo data. */
-export const providersConfigured = () => !!(setting("google") || setting("microsoft") || setting("api"));
+export const providersConfigured = () => !!(setting("google") || setting("api"));
 
 export function saveSetting(key: keyof typeof CONFIG_KEYS, value: string) {
   try {

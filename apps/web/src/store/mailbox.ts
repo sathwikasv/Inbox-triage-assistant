@@ -17,7 +17,7 @@ import {
   type MailMessage,
 } from "@c16/core";
 import { DEMO_EVENTS, DEMO_MAILBOX } from "../lib/demoMailbox";
-import { CALENDAR_PROVIDERS, MAIL_PROVIDERS } from "../lib/providers";
+import { CALENDAR_PROVIDERS, MAIL_PROVIDERS, serverGmailAccounts, setting } from "../lib/providers";
 import { useApp } from "./app";
 import { useAssistant } from "./assistant";
 
@@ -26,8 +26,24 @@ const IMPORT_KEY = "c16.mailbox.imported.v1";
 const KNOWN_KEY = "c16.mailbox.known.v1"; // which mailboxes were connected (provider + address only; never tokens)
 
 export interface KnownMailbox {
-  provider: "gmail" | "outlook" | "yahoo";
+  provider: "gmail" | "yahoo";
   address: string;
+  company?: string;
+  display_name?: string;
+}
+
+const CONSUMER = /^(gmail|googlemail|yahoo|ymail|rocketmail|outlook|hotmail|live|msn|icloud|me|proton|protonmail|aol)\./i;
+/** A sensible company label for an address: "alex@acme.com" → "Acme", "me@gmail.com" → "Personal". */
+export function inferCompany(address: string): string {
+  const domain = address.split("@")[1]?.toLowerCase() ?? "";
+  if (!domain || CONSUMER.test(domain)) return "Personal";
+  const parts = domain.split(".");
+  const second = ["co", "com", "org", "net", "ac", "gov", "edu"];
+  const name = parts.length >= 3 && second.includes(parts[parts.length - 2]) ? parts[parts.length - 3] : parts[parts.length - 2] ?? parts[0];
+  return name
+    .split(/[-_]/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 interface Mailbox {
@@ -35,7 +51,7 @@ interface Mailbox {
   messages: MailMessage[];
 }
 export interface CalendarLink {
-  calendar: "google" | "outlook";
+  calendar: "google";
   address: string;
   events: CalendarEvent[];
 }
@@ -66,7 +82,10 @@ interface MailboxStore {
   busy: Record<string, boolean>;
   known: KnownMailbox[];
   apply(fn: (s: MailboxState) => MailboxState, ok?: string): boolean;
-  connect(provider: "gmail" | "outlook" | "yahoo"): Promise<void>;
+  /** Signs in an account. A second, third... account of the same provider is added; the same address updates in place. */
+  connect(provider: "gmail" | "yahoo", opts?: { company?: string; hint?: string }): Promise<void>;
+  /** Names the company or workspace an account belongs to ("Fynd Retail", "Personal"). */
+  setAccountCompany(accountId: string, company: string): void;
   refresh(accountId: string): Promise<void>;
   restore(): Promise<void>;
   /** Signed in with Google: connect Gmail quietly with the server's grant (no popup). */
@@ -74,7 +93,7 @@ interface MailboxStore {
   disconnect(accountId: string): Promise<void>;
   enableSend(accountId: string): Promise<void>;
   send(view: MailboxView, threadKey: string, confirmed: string[]): Promise<boolean>;
-  connectCalendar(calendar: "google" | "outlook"): Promise<void>;
+  connectCalendar(calendar: "google"): Promise<void>;
   addToCalendar(view: MailboxView, proposalId: string, edits: Parameters<typeof acceptProposal>[3]): Promise<boolean>;
   importFile(text: string, name: string): boolean;
   removeImport(accountId: string): void;
@@ -104,10 +123,13 @@ export const useMailbox = create<MailboxStore>((set, get) => {
     save(KNOWN_KEY, k);
     set({ known: k });
   };
-  const connected = (r: Mailbox) => {
-    set({ connected: upsert(get().connected, r) });
+  const connected = (r: Mailbox, company?: string) => {
     const p = r.account.provider as KnownMailbox["provider"];
-    remember([...get().known.filter((k) => !(k.provider === p && k.address === r.account.address)), { provider: p, address: r.account.address }]);
+    const known = get().known.find((k) => k.provider === p && k.address === r.account.address);
+    const label = company?.trim() || r.account.company || known?.company || inferCompany(r.account.address);
+    const account: MailAccount = { ...r.account, company: label };
+    set({ connected: upsert(get().connected, { ...r, account }) });
+    remember([...get().known.filter((k) => !(k.provider === p && k.address === r.account.address)), { provider: p, address: r.account.address, company: label, display_name: account.display_name }]);
     // Real mail is here: the fictional demo mailboxes step aside (they can be shown again in Settings).
     if (useApp.getState().prefs.showDemo) useApp.getState().setPrefs({ showDemo: false });
   };
@@ -126,7 +148,7 @@ export const useMailbox = create<MailboxStore>((set, get) => {
     busy: {},
     known: (() => {
       try {
-        return JSON.parse(localStorage.getItem(KNOWN_KEY) ?? "[]") as KnownMailbox[];
+        return (JSON.parse(localStorage.getItem(KNOWN_KEY) ?? "[]") as (KnownMailbox & { provider: string })[]).filter((k): k is KnownMailbox => k.provider === "gmail" || k.provider === "yahoo");
       } catch {
         return [];
       }
@@ -143,15 +165,34 @@ export const useMailbox = create<MailboxStore>((set, get) => {
       }
     },
 
-    connect: (provider) =>
+    connect: (provider, opts) =>
       busy(`connect:${provider}`, async () => {
         const client = MAIL_PROVIDERS[provider]!;
         const need = client.setupNeeded();
         if (need) throw new Error(need);
-        const r = await client.connect();
-        connected(r);
-        useApp.getState().toast(`${r.account.address} connected: ${r.messages.length} emails loaded (read-only)`);
+        const r = await client.connect({ hint: opts?.hint });
+        const again = get().connected.some((c) => c.account.id === r.account.id);
+        connected(r, opts?.company);
+        useApp.getState().toast(`${r.account.address} ${again ? "refreshed" : "connected"}: ${r.messages.length} emails loaded (read-only)`);
       }),
+
+    setAccountCompany(accountId, company) {
+      const label = company.trim().slice(0, 80);
+      const named = (a: MailAccount) => (a.id === accountId ? { ...a, company: label || undefined } : a);
+      const hit = get().connected.find((c) => c.account.id === accountId);
+      if (hit) {
+        set({ connected: get().connected.map((c) => ({ ...c, account: named(c.account) })) });
+        remember(get().known.map((k) => (k.provider === hit.account.provider && k.address === hit.account.address ? { ...k, company: label || undefined } : k)));
+      }
+      const imp = get().imported.map((c) => ({ ...c, account: named(c.account) }));
+      save(IMPORT_KEY, imp);
+      set({ imported: imp });
+      // The Gmail linked to a Google login keeps its label on the server too.
+      const api = setting("api").replace(/\/$/, "");
+      if (hit?.account.provider === "gmail" && serverGmailAccounts().some((a) => a.email === hit.account.address) && api) {
+        fetch(`${api}/auth/google/accounts`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: hit.account.address, company: label }) }).catch(() => undefined);
+      }
+    },
 
     refresh: (accountId) =>
       busy(`refresh:${accountId}`, async () => {
@@ -162,12 +203,13 @@ export const useMailbox = create<MailboxStore>((set, get) => {
         useApp.getState().toast(`${m.account.address} refreshed: ${messages.length} emails`);
       }),
 
+    // Signed in with Google: every Gmail linked to the login connects quietly with the server's grants (no popup).
     async connectLinkedGmail() {
       const gmail = MAIL_PROVIDERS.gmail!;
-      if (gmail.setupNeeded() || get().connected.some((c) => c.account.provider === "gmail") || get().busy["connect:gmail"]) return;
+      if (gmail.setupNeeded() || !gmail.restoreAll || get().busy["connect:gmail"]) return;
       set({ busy: { ...get().busy, "connect:gmail": true } });
       try {
-        connected(await gmail.connect());
+        for (const r of await gmail.restoreAll()) if (!get().connected.some((c) => c.account.id === r.account.id)) connected(r);
       } catch {
         /* the reconnect bar offers one click */
       } finally {
@@ -175,12 +217,12 @@ export const useMailbox = create<MailboxStore>((set, get) => {
       }
     },
 
+    // After a reload: every account a provider or the server still holds comes back (several Yahoo sessions, linked Gmail).
     async restore() {
-      for (const k of get().known) {
-        const client = MAIL_PROVIDERS[k.provider];
-        if (!client?.restore || client.setupNeeded() || get().connected.some((c) => c.account.provider === k.provider && c.account.address === k.address)) continue;
-        const r = await client.restore().catch(() => null);
-        if (r && r.account.address === k.address) connected(r);
+      for (const client of Object.values(MAIL_PROVIDERS)) {
+        if (!client || client.setupNeeded()) continue;
+        const found = client.restoreAll ? await client.restoreAll().catch(() => []) : [await client.restore?.().catch(() => null)].filter((x): x is Mailbox => !!x);
+        for (const r of found) if (!get().connected.some((c) => c.account.id === r.account.id)) connected(r);
       }
     },
 
