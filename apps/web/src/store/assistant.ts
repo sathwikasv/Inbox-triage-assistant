@@ -88,7 +88,9 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
       subject: thread.subject.slice(0, 300),
       user_name: userName.slice(0, 80) || "me",
       category: thread.category,
-      messages: msgs.slice(-10).map((m) => ({ from: nameOf(m.from).slice(0, 200), direction: m.direction, received_at: m.received_at, body: (m.body || "(empty)").slice(0, 6000) })),
+      thread_key: thread.key.slice(0, 300),
+      participants: [...new Set(msgs.flatMap((m) => [m.from, ...m.to, ...m.cc]).map((a) => a.email.toLowerCase()))].filter((e) => !view.user.addresses.map((x) => x.toLowerCase()).includes(e)).slice(0, 30),
+      messages: msgs.slice(-10).map((m) => ({ id: m.id.slice(0, 300), from: nameOf(m.from).slice(0, 200), direction: m.direction, received_at: m.received_at, body: (m.body || "(empty)").slice(0, 6000) })),
     });
     const lead = [...msgs].reverse().find((m) => m.direction === "inbound")!;
     if (r.status === "ok") set({ results: { ...get().results, [thread.key]: { ...r, for_message: lastMessageId(thread), lead_message: lead.id, at: new Date().toISOString() } } });
