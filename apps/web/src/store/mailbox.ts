@@ -19,6 +19,7 @@ import {
 import { DEMO_EVENTS, DEMO_MAILBOX } from "../lib/demoMailbox";
 import { CALENDAR_PROVIDERS, MAIL_PROVIDERS } from "../lib/providers";
 import { useApp } from "./app";
+import { useAssistant } from "./assistant";
 
 const STATE_KEY = "c16.mailbox.state.v1";
 const IMPORT_KEY = "c16.mailbox.imported.v1";
@@ -293,8 +294,9 @@ let shared: { deps: unknown[]; view: MailboxView } | null = null;
 export function useMailboxView(): MailboxView {
   const { state, imported, connected, calendars } = useMailbox();
   const prefs = useApp((s) => s.prefs);
+  const results = useAssistant((s) => s.results);
   return useMemo(() => {
-    const deps = [state, imported, connected, calendars, prefs];
+    const deps = [state, imported, connected, calendars, prefs, results];
     if (shared && shared.deps.every((d, i) => d === deps[i])) return shared.view;
     const view = analyse();
     shared = { deps, view };
@@ -309,7 +311,9 @@ export function useMailboxView(): MailboxView {
     const live = connected.length > 0 || imported.length > 0 || !prefs.showDemo;
     const external = [...(prefs.showDemo ? DEMO_EVENTS : []), ...calendars.flatMap((c) => c.events)];
     const merged = { ...state, events: [...state.events, ...external.filter((e) => !state.events.some((x) => x.id === e.id))] };
-    return buildMailboxView(data, merged, { now: live ? new Date().toISOString() : DEMO_MAILBOX.demo_clock });
+    // The AI assistant's category opinions, for the conversations it has read.
+    const aiCategories = Object.fromEntries(Object.values(results).filter((r) => r.category).map((r) => [r.lead_message, { category: r.category!, reason: r.category_reason ?? "it read the whole conversation" }]));
+    return buildMailboxView(data, merged, { now: live ? new Date().toISOString() : DEMO_MAILBOX.demo_clock, aiCategories });
     }
-  }, [state, imported, connected, calendars, prefs]);
+  }, [state, imported, connected, calendars, prefs, results]);
 }

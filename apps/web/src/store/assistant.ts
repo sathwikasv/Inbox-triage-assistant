@@ -9,6 +9,7 @@ import { nameOf } from "../components/mail/common";
 
 export interface AssistEntry extends AssistResult {
   for_message: string; // the newest message the result covers; a newer message makes it stale
+  lead_message: string; // the newest inbound message: the AI's category applies to it
   at: string;
 }
 
@@ -89,7 +90,8 @@ export const useAssistant = create<AssistantStore>((set, get) => ({
       category: thread.category,
       messages: msgs.slice(-10).map((m) => ({ from: nameOf(m.from).slice(0, 200), direction: m.direction, received_at: m.received_at, body: (m.body || "(empty)").slice(0, 6000) })),
     });
-    if (r.status === "ok") set({ results: { ...get().results, [thread.key]: { ...r, for_message: lastMessageId(thread), at: new Date().toISOString() } } });
+    const lead = [...msgs].reverse().find((m) => m.direction === "inbound")!;
+    if (r.status === "ok") set({ results: { ...get().results, [thread.key]: { ...r, for_message: lastMessageId(thread), lead_message: lead.id, at: new Date().toISOString() } } });
     else set({ errors: { ...get().errors, [thread.key]: r.error } });
     set({ working: null, analyzed: get().analyzed + 1 });
   },

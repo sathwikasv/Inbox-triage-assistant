@@ -11,6 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Bot,
+  Code2,
   Highlighter,
   ListTodo,
   Loader2,
@@ -59,6 +61,7 @@ import { aiReply, aiStatus } from "../../lib/ai";
 import { useThreadActions } from "../../lib/threadActions";
 import { lastMessageId, useAssistant } from "../../store/assistant";
 import { AssistantCard } from "./AssistantCard";
+import { EmailFrame } from "./EmailFrame";
 import { Badge, Button, Dialog, Segmented, Tip, cn } from "../../ui";
 import { CAT, CATS, CategoryBadge, PriorityBadge, ProviderMark, SenderAvatar, accountNote, addrList, addrText, ago, localTime, nameOf } from "./common";
 
@@ -173,6 +176,11 @@ export function ThreadView({ view, thread, onBack, position, onRemoved }: { view
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <CategoryBadge category={thread.category} full />
               <PriorityBadge priority={thread.priority} />
+              {lead?.automated && (
+                <span className="inline-flex h-5 items-center gap-1 rounded-full bg-subtle px-2 text-[11px] font-medium text-muted" title="Sent by a system, not a person">
+                  <Bot className="h-3 w-3" /> Automated
+                </span>
+              )}
               <span className="inline-flex h-5 items-center gap-1 rounded-full bg-subtle pl-0.5 pr-2 text-[11px] text-muted">
                 <ProviderMark provider={acc.provider} size="xs" /> {acc.address} · {accountNote(acc)}
               </span>
@@ -291,7 +299,17 @@ export function ThreadView({ view, thread, onBack, position, onRemoved }: { view
             )}
           </div>
 
-          {thread.category !== "spam" && <ReplyEditor view={view} thread={thread} account={acc} />}
+          {thread.category !== "spam" &&
+            (lead?.automated && !replyHeaders(view, thread.key, acc) ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-line bg-subtle/60 px-4 py-3 text-sm">
+                <Bot className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+                <span>
+                  <b className="font-semibold">No reply needed.</b> <span className="text-muted">{nameOf(msgs.find((m) => m.direction === "inbound")?.from ?? msgs[0].from)} sends from a no-reply address, so nobody would read an answer. Archive it when you're done.</span>
+                </span>
+              </div>
+            ) : (
+              <ReplyEditor view={view} thread={thread} account={acc} />
+            ))}
         </div>
       </div>
     </section>
@@ -325,6 +343,7 @@ const bare = (s: string) => s.replace(/^((re|fwd?|fw)s*:s*)+/i, "").trim().toLow
 function MessageBody({ view, m, provider, highlight, isLead, threadSubject }: { view: MailboxView; m: MailMessage; provider: MailAccount["provider"]; highlight: boolean; isLead: boolean; threadSubject: string }) {
   const tz = useApp((s) => s.prefs.timezone);
   const [showQuoted, setShowQuoted] = useState(false);
+  const [asText, setAsText] = useState(false);
   const { fresh, quoted } = splitQuoted(m.body);
   const ins = view.insights[m.id];
   const d = view.decisions[m.id];
@@ -360,8 +379,21 @@ function MessageBody({ view, m, provider, highlight, isLead, threadSubject }: { 
           )}
         </div>
       </header>
-      <div className={cn("mt-3 whitespace-pre-wrap break-words pl-0 text-[15px] leading-7 sm:pl-[52px]", ins?.suspicious && "rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-fg/80")}>{marks.length ? highlighted(text, marks) : text}</div>
-      {quoted && (
+      {m.html && !ins?.suspicious && (
+        <div className="mt-2 flex justify-end sm:pl-[52px]">
+          <button onClick={() => setAsText((v) => !v)} className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-muted hover:bg-fg/[0.06] hover:text-fg">
+            <Code2 className="h-3 w-3" /> {asText ? "Original view" : marks.length ? "Text view with evidence" : "Text view"}
+          </button>
+        </div>
+      )}
+      {m.html && !asText && !ins?.suspicious ? (
+        <div className="mt-2 sm:pl-[52px]">
+          <EmailFrame html={m.html} title={`Email from ${nameOf(m.from)}`} />
+        </div>
+      ) : (
+        <div className={cn("mt-3 whitespace-pre-wrap break-words pl-0 text-[15px] leading-7 sm:pl-[52px]", ins?.suspicious && "rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 text-fg/80")}>{marks.length ? highlighted(text, marks) : text}</div>
+      )}
+      {quoted && (!m.html || asText) && (
         <div className="mt-2 sm:pl-[52px]">
           <Tip content={showQuoted ? "Hide quoted text" : "Show quoted text"}>
             <button onClick={() => setShowQuoted((v) => !v)} aria-label={showQuoted ? "Hide quoted text" : "Show quoted text"} className="rounded-full bg-subtle px-2 text-muted hover:bg-fg/10">
