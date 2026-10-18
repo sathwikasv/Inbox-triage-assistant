@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { lintDraft, needsApproval, sendRisks, type LintViolation } from "@c16/core";
 import { aiClient, aiEnabled, aiModel } from "./ai.js";
-import { ReplyRequestSchema, factSheet, factsOf } from "./aiReply.js";
+import { ReplyRequestSchema, factSheet, factsOf, looksInjected } from "./aiReply.js";
 
 // The inbox assistant (Gemini). For one conversation it writes a short summary, the key facts, a reply draft
 // when one is expected, and whether a person must look before anything goes out. It never sends or saves.
@@ -204,7 +204,10 @@ Rules:
 
     const reasons: ReviewReason[] = out.review_needed ? out.review_reasons.filter((r) => r.trim()).map((text) => ({ text: text.trim(), source: "ai" as const })) : [];
     const automated = !!out.automated;
-    let reply: string | null = out.needs_reply && !automated && out.reply.trim() ? formatReply(out.reply) : null;
+    // An email that tries to instruct the assistant is never answered, whatever the model wrote, and a person is told.
+    const injected = looksInjected(req);
+    if (injected) reasons.push({ text: "This email tries to give instructions to an assistant. It is treated as suspicious: no reply is drafted and its instructions are not followed.", source: "rules" });
+    let reply: string | null = !injected && out.needs_reply && !automated && out.reply.trim() ? formatReply(out.reply) : null;
     let replyStatus: "ok" | "rejected" | "none" = reply ? "ok" : "none";
     let violations: LintViolation[] = [];
     if (reply && facts) {
