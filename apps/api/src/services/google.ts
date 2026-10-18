@@ -3,6 +3,7 @@
 // token is stored encrypted (AES-256-GCM with SESSION_SECRET) on the user; the browser only ever receives
 // short-lived access tokens, kept in tab memory.
 
+export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 export const GOOGLE_SCOPES = ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"];
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -20,12 +21,12 @@ export function googleConfig(): { ok: true; clientId: string; secret: string; re
   return { ok: true, clientId, secret, redirect };
 }
 
-export function authUrl(cfg: { clientId: string; redirect: string }, state: string, loginHint?: string) {
+export function authUrl(cfg: { clientId: string; redirect: string }, state: string, loginHint?: string, opts: { calendar?: boolean } = {}) {
   const q = new URLSearchParams({
     client_id: cfg.clientId,
     redirect_uri: cfg.redirect,
     response_type: "code",
-    scope: GOOGLE_SCOPES.join(" "),
+    scope: [...GOOGLE_SCOPES, ...(opts.calendar ? [GOOGLE_CALENDAR_SCOPE] : [])].join(" "), // Calendar only when asked for
     access_type: "offline", // a refresh token, so Gmail stays connected after reloads
     prompt: "consent select_account",
     include_granted_scopes: "true",

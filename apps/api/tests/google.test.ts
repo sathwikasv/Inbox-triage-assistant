@@ -199,3 +199,27 @@ describe("several Gmail accounts linked to one person", () => {
     expect(start.headers.get("location")).toMatch(/google_error=.*Sign%20in%20first/);
   });
 });
+
+describe("Google Calendar permission", () => {
+  it("asks for calendar.events only when ?calendar=1, and keeps the default scopes otherwise", async () => {
+    const plain = new URL((await get("/auth/google/start")).headers.get("location")!);
+    expect(plain.searchParams.get("scope")).toBe("openid email profile https://www.googleapis.com/auth/gmail.readonly");
+    const cal = new URL((await get("/auth/google/start?calendar=1&next=/calendar&hint=riya@gmail.com")).headers.get("location")!);
+    expect(cal.searchParams.get("scope")).toBe("openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events");
+    expect(cal.searchParams.get("access_type")).toBe("offline");
+    expect(cal.searchParams.get("include_granted_scopes")).toBe("true");
+    expect(cal.searchParams.get("login_hint")).toBe("riya@gmail.com");
+  });
+
+  it("returns the granted scope with the token, so the app knows whether Calendar is allowed", async () => {
+    fakeGoogle();
+    const inner = googleHttp.fetch;
+    googleHttp.fetch = async (url, init) => {
+      if (String(url) === "https://oauth2.googleapis.com/token" && new URLSearchParams(String(init?.body)).get("grant_type") === "refresh_token") return Response.json({ access_token: "ya29.cal", expires_in: 3599, scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events" });
+      return inner(url, init);
+    };
+    const { auth } = await signInWithGoogle();
+    const t = await (await get("/auth/google/token", auth)).json();
+    expect(t.scope).toContain("https://www.googleapis.com/auth/calendar.events");
+  });
+});
