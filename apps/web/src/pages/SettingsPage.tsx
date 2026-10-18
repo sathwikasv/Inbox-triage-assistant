@@ -121,6 +121,7 @@ function CompanyEditor({ account }: { account: MailAccount }) {
 }
 
 function Accounts() {
+  const auth = useAuth();
   const view = useMailboxView();
   const { refresh, disconnect, enableSend, removeImport, connectCalendar, calendars, busy } = useMailbox();
   const { prefs, setPrefs } = useApp();
@@ -190,10 +191,14 @@ function Accounts() {
             .
           </p>
         )}
-        <label className="mt-4 flex items-center gap-2 border-t border-line pt-4 text-sm">
-          <input type="checkbox" checked={prefs.showDemo} onChange={(e) => setPrefs({ showDemo: e.target.checked })} />
-          Show the demo accounts ({DEMO_MAILBOX.accounts.map((a) => a.address).join(", ")}). Their emails are fictional and their actions are simulated.
-        </label>
+        {auth.user ? (
+          <p className="mt-4 border-t border-line pt-4 text-xs text-muted">You are signed in, so only your own mailboxes are shown. The fictional demo mailboxes are for visitors without an account.</p>
+        ) : (
+          <label className="mt-4 flex items-center gap-2 border-t border-line pt-4 text-sm">
+            <input type="checkbox" checked={prefs.showDemo} onChange={(e) => setPrefs({ showDemo: e.target.checked })} />
+            Show the demo accounts ({DEMO_MAILBOX.accounts.map((a) => a.address).join(", ")}). Their emails are fictional and their actions are simulated.
+          </label>
+        )}
       </Card>
 
       <Card title="Calendar" description="Connected separately from mail. Connecting a mailbox never grants calendar access.">
