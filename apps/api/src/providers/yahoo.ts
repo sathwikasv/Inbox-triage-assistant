@@ -21,11 +21,11 @@ export function yahooConfig(): { ok: true; clientId: string; secret: string; red
   return { ok: true, clientId, secret, redirect };
 }
 
-export function authorizeUrl(send: boolean): { url: string; state: string } {
+export function authorizeUrl(send: boolean, loginHint?: string): { url: string; state: string } {
   const cfg = yahooConfig();
   if (!cfg.ok) throw new Error(cfg.reason);
   const state = randomBytes(16).toString("base64url");
-  const q = new URLSearchParams({ client_id: cfg.clientId, redirect_uri: cfg.redirect, response_type: "code", scope: `openid email mail-r${send ? " mail-w" : ""}`, state, language: "en-us" });
+  const q = new URLSearchParams({ client_id: cfg.clientId, redirect_uri: cfg.redirect, response_type: "code", scope: `openid email mail-r${send ? " mail-w" : ""}`, state, language: "en-us", prompt: "login", ...(loginHint ? { login_hint: loginHint } : {}) });
   return { url: `${AUTH_URL}?${q}`, state };
 }
 

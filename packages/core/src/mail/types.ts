@@ -17,6 +17,10 @@ export interface MailAccount {
   error?: string;
   /** Off by default. Even when on, every send needs a person's review and confirmation; auto_send is never possible. */
   send_enabled: boolean;
+  /** Which company or workspace the mailbox belongs to ("Fynd Retail", "Acme Corp", "Personal"). Set by the person. */
+  company?: string;
+  /** Badge colour preset for the company (a key such as "blue" or "rose"). */
+  color?: string;
 }
 
 export interface Address {

@@ -16,10 +16,37 @@ export interface ProviderTokens {
   can_send: boolean;
 }
 
-interface Session {
+export interface Session {
   created: number;
   oauth_state?: { value: string; send: boolean; at: number };
+  /** Every Yahoo account connected in this browser, by lowercase email. */
+  yahoos?: Record<string, ProviderTokens>;
+  /** The most recently connected Yahoo account (what a request without ?email= means). */
   yahoo?: ProviderTokens;
+}
+
+const lower = (e: string) => e.trim().toLowerCase();
+
+/** The Yahoo account a request is about: the one named by email, else the latest connected. */
+export function yahooOf(s: Session | null | undefined, email?: unknown): ProviderTokens | undefined {
+  if (!s) return undefined;
+  if (typeof email === "string" && email) return s.yahoos?.[lower(email)];
+  return s.yahoo;
+}
+export function addYahoo(s: Session, t: ProviderTokens) {
+  s.yahoos = { ...(s.yahoos ?? {}), [lower(t.email)]: t };
+  s.yahoo = t;
+}
+export function removeYahoo(s: Session, email?: unknown) {
+  if (typeof email !== "string" || !email) {
+    s.yahoos = {};
+    s.yahoo = undefined;
+    return;
+  }
+  const rest = { ...(s.yahoos ?? {}) };
+  delete rest[lower(email)];
+  s.yahoos = rest;
+  if (s.yahoo && lower(s.yahoo.email) === lower(email)) s.yahoo = Object.values(rest).at(-1);
 }
 
 const sessions = new Map<string, Session>();
