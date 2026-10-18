@@ -40,6 +40,8 @@ export interface CalendarProviderClient {
   label: string;
   setupNeeded(): string | null;
   connect(): Promise<{ address: string; events: CalendarEvent[] }>;
+  /** Reconnects quietly after a page load when the server still holds a Calendar grant; null when it does not. */
+  restore?(): Promise<{ address: string; events: CalendarEvent[] } | null>;
   list(): Promise<CalendarEvent[]>;
   create(e: Omit<CalendarEvent, "id" | "calendar" | "simulated">): Promise<CalendarEvent>;
 }

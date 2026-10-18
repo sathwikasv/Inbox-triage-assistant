@@ -1,4 +1,6 @@
 import type { Address, CalendarEvent, MailAccount, MailMessage } from "@c16/core";
+import { useApp } from "../../store/app";
+import { dayStartIso, resolveUserTimezone, toZoneIso } from "../time";
 import { ProviderError, htmlToText, isoWithOffset, keepHtml, setting, tidyText, type CalendarProviderClient, type MailProviderClient, type OutgoingReply } from "./types";
 
 // Gmail and Google Calendar through Google Identity Services (OAuth 2.0 token model).
@@ -47,18 +49,31 @@ export const serverGmailLinked = () => serverAccounts.length > 0;
 export const serverGmailAccounts = () => serverAccounts;
 const isServerLinked = (email?: string) => (email ? serverAccounts.some((a) => a.email === email.toLowerCase()) : serverAccounts.length > 0);
 
+const CALENDAR_SCOPE = SCOPES.calendar;
+
 async function serverToken(email?: string): Promise<string | null> {
   const api = setting("api").replace(/\/$/, "");
   if (!isServerLinked(email) || !api) return null;
   try {
     const r = await fetch(`${api}/auth/google/token${email ? `?email=${encodeURIComponent(email)}` : ""}`, { credentials: "include" });
     if (!r.ok) return null;
-    const j = (await r.json()) as { access_token: string; expires_in: number; email: string };
-    slot(j.email).set("read", { token: j.access_token, expires: Date.now() + j.expires_in * 1000 });
+    const j = (await r.json()) as { access_token: string; expires_in: number; email: string; scope?: string };
+    const expires = Date.now() + j.expires_in * 1000;
+    slot(j.email).set("read", { token: j.access_token, expires });
+    // The same token already works for Calendar when the person allowed it at sign-in.
+    if (j.scope?.split(" ").includes(CALENDAR_SCOPE)) slot().set("calendar", { token: j.access_token, expires });
     return j.access_token;
   } catch {
     return null;
   }
+}
+
+/** A Calendar token from the server-held grant, or null when Calendar was not allowed there. */
+async function serverCalendarToken(): Promise<string | null> {
+  const have = slot().get("calendar");
+  if (have && have.expires > Date.now() + 60_000) return have.token;
+  await serverToken(serverAccounts[0]?.email);
+  return slot().get("calendar")?.token ?? null;
 }
 
 function loadGis(): Promise<void> {
@@ -84,6 +99,10 @@ async function token(scope: ScopeName, o: TokenOptions = {}): Promise<string> {
     if (have && have.expires > Date.now() + 60_000) return have.token;
     if (scope === "read") {
       const fromServer = await serverToken(o.email);
+      if (fromServer) return fromServer;
+    }
+    if (scope === "calendar") {
+      const fromServer = await serverCalendarToken(); // allowed at sign-in: no popup
       if (fromServer) return fromServer;
     }
   }
@@ -252,11 +271,15 @@ export const gmail: MailProviderClient = {
 const CAL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 type GEvent = { id: string; summary?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; location?: string; hangoutLink?: string; reminders?: { overrides?: { minutes: number }[] } };
 
+const zone = () => resolveUserTimezone(useApp.getState().prefs.timezone);
+
+// Timed events come back as exact instants and are shown in the person's zone. All-day events keep their
+// calendar date (midnight in that zone), so they never slip to the day before or after.
 const toEvent = (e: GEvent): CalendarEvent => ({
   id: `gcal:${e.id}`,
   title: e.summary ?? "(no title)",
-  start: e.start.dateTime ?? `${e.start.date}T00:00:00Z`,
-  end: e.end.dateTime ?? `${e.end.date}T00:00:00Z`,
+  start: e.start.dateTime ? toZoneIso(e.start.dateTime, zone()) : dayStartIso(e.start.date!, zone()),
+  end: e.end.dateTime ? toZoneIso(e.end.dateTime, zone()) : dayStartIso(e.end.date!, zone()),
   all_day: !e.start.dateTime,
   location: e.location ?? null,
   link: e.hangoutLink ?? null,
@@ -267,14 +290,36 @@ const toEvent = (e: GEvent): CalendarEvent => ({
   simulated: false,
 });
 
+const calendarReady = () => !!(setting("google") || serverGmailLinked());
+
+/** Where the person goes to allow Calendar on the server-held Google login (a full-page sign-in, back to /calendar). */
+function serverCalendarSignIn() {
+  const api = setting("api").replace(/\/$/, "");
+  const hint = serverAccounts[0]?.email;
+  window.location.assign(`${api}/auth/google/start?calendar=1&next=${encodeURIComponent("/calendar")}${hint ? `&hint=${encodeURIComponent(hint)}` : ""}`);
+}
+
+async function loadCalendar(): Promise<{ address: string; events: CalendarEvent[] }> {
+  const me = await call<{ id: string }>("calendar", "https://www.googleapis.com/calendar/v3/calendars/primary");
+  return { address: me.id, events: await googleCalendar.list() };
+}
+
 export const googleCalendar: CalendarProviderClient = {
   calendar: "google",
   label: "Google Calendar",
-  setupNeeded: () => (setting("google") ? null : "Add a Google OAuth Client ID in Settings → Integrations"),
+  setupNeeded: () => (calendarReady() ? null : "Add a Google OAuth Client ID in Settings → Integrations, or sign in with Google"),
   async connect() {
-    const events = await this.list();
-    const me = await call<{ id: string }>("calendar", "https://www.googleapis.com/calendar/v3/calendars/primary");
-    return { address: me.id, events };
+    if (await serverCalendarToken()) return loadCalendar(); // already allowed: no popup
+    if (serverAccounts.length > 0 && setting("api")) {
+      serverCalendarSignIn(); // the server keeps the grant, so Calendar survives reloads
+      return new Promise(() => undefined); // the page is leaving for Google
+    }
+    return loadCalendar(); // browser sign-in (Google Identity Services) with the calendar permission
+  },
+  // After a page load: reconnect quietly when the server already holds a Calendar grant.
+  async restore() {
+    if (!(await serverCalendarToken())) return null;
+    return loadCalendar().catch(() => null);
   },
   async list() {
     const from = new Date(Date.now() - 7 * 86_400_000).toISOString();
@@ -284,12 +329,14 @@ export const googleCalendar: CalendarProviderClient = {
   },
   async create(e) {
     // No attendees are added, so Google sends no invitations on the person's behalf.
+    const tz = zone();
+    const at = (iso: string) => ({ dateTime: toZoneIso(iso, tz), timeZone: tz }); // the exact instant, recorded in the person's zone
     const body = {
       summary: e.title,
       location: e.location ?? undefined,
       description: [e.link ? `Join: ${e.link}` : "", "Added from Triagedesk after you confirmed it."].filter(Boolean).join("\n"),
-      start: e.all_day ? { date: e.start.slice(0, 10) } : { dateTime: e.start },
-      end: e.all_day ? { date: e.end.slice(0, 10) } : { dateTime: e.end },
+      start: e.all_day ? { date: e.start.slice(0, 10) } : at(e.start),
+      end: e.all_day ? { date: e.end.slice(0, 10) } : at(e.end),
       reminders: { useDefault: false, overrides: e.reminders_min.map((minutes) => ({ method: "popup", minutes })) },
     };
     return { ...toEvent(await call<GEvent>("calendar", CAL, { method: "POST", body: JSON.stringify(body) })), source_message_id: e.source_message_id, participants: e.participants };
