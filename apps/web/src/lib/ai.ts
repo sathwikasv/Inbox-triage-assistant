@@ -1,3 +1,4 @@
+import type { Category } from "@c16/core";
 import { setting } from "./providers";
 
 // AI reply drafts come from the server (the model key never reaches the browser). The server checks every
@@ -53,6 +54,9 @@ export interface AssistResult {
   reply: string | null; // already checked by the server's claims check; null when withheld or not needed
   reply_status: "ok" | "rejected" | "none";
   review: { needed: boolean; reasons: ReviewReason[] };
+  category?: Category | null; // the model's opinion, applied as an AI decision (a person's choice still wins)
+  category_reason?: string | null;
+  automated?: boolean;
 }
 
 /** Whether the server answers, and whether it has a model key. */
