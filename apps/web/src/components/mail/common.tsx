@@ -207,6 +207,31 @@ export function SenderAvatar({ name, provider, size = "md" }: { name: string; pr
   );
 }
 
+/** Badge colour presets for companies; a company without a chosen colour gets a stable one from its name. */
+const COMPANY_COLORS: Record<string, string> = {
+  blue: "bg-blue-50 text-blue-800 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-200 dark:ring-blue-500/30",
+  violet: "bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-500/15 dark:text-violet-200 dark:ring-violet-500/30",
+  emerald: "bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:ring-emerald-500/30",
+  amber: "bg-amber-50 text-amber-900 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:ring-amber-500/30",
+  rose: "bg-rose-50 text-rose-800 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-200 dark:ring-rose-500/30",
+  teal: "bg-teal-50 text-teal-800 ring-teal-200 dark:bg-teal-500/15 dark:text-teal-200 dark:ring-teal-500/30",
+  orange: "bg-orange-50 text-orange-800 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-200 dark:ring-orange-500/30",
+  slate: "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-200 dark:ring-slate-500/30",
+};
+const PRESET_NAMES = Object.keys(COMPANY_COLORS);
+export function companyTone(company: string, color?: string) {
+  if (color && COMPANY_COLORS[color]) return COMPANY_COLORS[color];
+  const h = [...company.toLowerCase()].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7);
+  return COMPANY_COLORS[PRESET_NAMES[h % PRESET_NAMES.length]];
+}
+/** The company or workspace a mailbox belongs to, as a small coloured pill. */
+export function CompanyBadge({ account, className }: { account: Pick<MailAccount, "company" | "color">; className?: string }) {
+  if (!account.company) return null;
+  return <span title={`Company: ${account.company}`} className={cn("inline-flex h-5 max-w-[10rem] items-center truncate whitespace-nowrap rounded-full px-2 text-[11px] font-medium ring-1 ring-inset", companyTone(account.company, account.color), className)}>{account.company}</span>;
+}
+/** "Fynd Retail · riya@fynd.com", for places that show only text. */
+export const accountTitle = (a: Pick<MailAccount, "company" | "address">) => (a.company ? `${a.company} · ${a.address}` : a.address);
+
 export const accountNote = (a: MailAccount) => (a.mode === "demo" ? "Demo data" : a.mode === "import" ? "Imported file" : a.send_enabled ? "Connected" : "Connected · read-only");
 
 export const nameOf = (a: Address) => a.name || a.email;

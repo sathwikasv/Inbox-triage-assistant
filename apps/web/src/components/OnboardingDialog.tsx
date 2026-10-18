@@ -6,8 +6,9 @@ import { useAuth } from "../store/auth";
 import { useApp } from "../store/app";
 import { useMailbox } from "../store/mailbox";
 import { useAssistant } from "../store/assistant";
-import { CALENDAR_PROVIDERS, MAIL_PROVIDERS } from "../lib/providers";
-import { ProviderMark } from "./mail/common";
+import { CALENDAR_PROVIDERS } from "../lib/providers";
+import { CompanyBadge } from "./mail/common";
+import { ConnectTiles } from "./Onboarding";
 import { cn } from "../ui";
 
 /** Reopen the setup guide from anywhere (the account menu). */
@@ -34,7 +35,7 @@ function Step({ n, done, icon, title, text, children }: { n: number; done: boole
 export function OnboardingDialog() {
   const { user, update } = useAuth();
   const guide = useSetupGuide();
-  const { connect, connectCalendar, busy, connected, calendars } = useMailbox();
+  const { connectCalendar, busy, connected, calendars } = useMailbox();
   const a = useAssistant();
   const { prefs } = useApp();
   const [later, setLater] = useState(false);
@@ -81,34 +82,22 @@ export function OnboardingDialog() {
           </div>
 
           <ol className="divide-y divide-line px-6">
-            <Step n={1} done={mailDone} icon={<Inbox />} title="Connect your mailboxes" text="Gmail, Outlook or Yahoo Mail. Read-only until you allow sending; your password is never typed here.">
-              <div className="grid gap-2 sm:grid-cols-3">
-                {(["gmail", "outlook", "yahoo"] as const).map((p) => {
-                  const client = MAIL_PROVIDERS[p]!;
-                  const need = client.setupNeeded();
-                  const acc = connected.find((c) => c.account.provider === p);
-                  return (
-                    <button
-                      key={p}
-                      disabled={!!acc || !!need || busy[`connect:${p}`]}
-                      onClick={() => connect(p)}
-                      title={need ?? undefined}
-                      className={cn("flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition", acc ? "border-emerald-300 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10" : "border-line hover:border-brand/50 hover:shadow-card disabled:opacity-50")}
-                    >
-                      {busy[`connect:${p}`] ? <Loader2 className="h-5 w-5 animate-spin" /> : <ProviderMark provider={p} size="sm" />}
-                      <span className="min-w-0">
-                        <span className="block font-semibold">{client.label}</span>
-                        <span className="block truncate text-xs text-muted">{acc ? acc.account.address : need ? "Not set up on this site" : "Connect"}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+            <Step n={1} done={mailDone} icon={<Inbox />} title="Connect your mailboxes" text="Gmail and Yahoo Mail, as many accounts as you have, from any company. Read-only until you allow sending; your password is never typed here.">
+              <ConnectTiles withCompany />
+              {connected.length > 0 && (
+                <ul className="mt-3 space-y-1 text-xs text-muted">
+                  {connected.map((c) => (
+                    <li key={c.account.id} className="flex items-center gap-2">
+                      <Check className="h-3.5 w-3.5 text-emerald-600" /> {c.account.address} <CompanyBadge account={c.account} />
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Step>
 
             <Step n={2} done={calDone} icon={<CalendarDays />} title="Connect your calendar (optional)" text="So meeting requests show clashes and land in your real calendar after you accept them.">
               <div className="flex flex-wrap gap-2">
-                {(["google", "outlook"] as const).map((c) => {
+                {(["google"] as const).map((c) => {
                   const client = CALENDAR_PROVIDERS[c];
                   const need = client.setupNeeded();
                   const link = calendars.find((x) => x.calendar === c);

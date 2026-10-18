@@ -4,9 +4,9 @@ import starter from "../../../../data/fixture/C16/fixture.json";
 // DEMO MODE: fictional accounts and emails. Nothing here came from a real mailbox.
 
 export const DEMO_ACCOUNTS: MailAccount[] = [
-  { id: "gmail-demo", provider: "gmail", address: "riya.ops@gmail.demo", display_name: "Riya (Gmail demo)", mode: "demo", status: "ok", last_sync_at: "2026-10-17T09:55:00+05:30", send_enabled: false },
-  { id: "outlook-demo", provider: "outlook", address: "ops-team@fynd-retail.demo", display_name: "Ops team (Outlook demo)", mode: "demo", status: "ok", last_sync_at: "2026-10-17T09:55:00+05:30", send_enabled: false },
-  { id: "yahoo-demo", provider: "yahoo", address: "riya.personal@yahoo.demo", display_name: "Personal (Yahoo demo)", mode: "demo", status: "ok", last_sync_at: "2026-10-17T09:50:00+05:30", send_enabled: false },
+  { id: "gmail-demo", provider: "gmail", address: "riya.ops@gmail.demo", display_name: "Riya (Gmail demo)", mode: "demo", company: "Fynd Ops", status: "ok", last_sync_at: "2026-10-17T09:55:00+05:30", send_enabled: false },
+  { id: "outlook-demo", provider: "outlook", address: "ops-team@fynd-retail.demo", display_name: "Ops team (demo)", mode: "demo", company: "Fynd Retail", status: "ok", last_sync_at: "2026-10-17T09:55:00+05:30", send_enabled: false },
+  { id: "yahoo-demo", provider: "yahoo", address: "riya.personal@yahoo.demo", display_name: "Personal (Yahoo demo)", mode: "demo", company: "Personal", status: "ok", last_sync_at: "2026-10-17T09:50:00+05:30", send_enabled: false },
 ];
 
 const me = { name: "Riya Sharma", email: "riya.ops@gmail.demo" };
@@ -16,7 +16,7 @@ const personal = { name: "Riya Sharma", email: "riya.personal@yahoo.demo" };
 type Seed = Omit<MailMessage, "direction" | "read" | "starred" | "attachments" | "cc"> & Partial<Pick<MailMessage, "direction" | "read" | "starred" | "attachments" | "cc">>;
 const msg = (m: Seed): MailMessage => ({ direction: "inbound", read: false, starred: false, attachments: [], cc: [], ...m });
 
-// The 12 C16 fixture emails land in the Outlook ops inbox (threaded by content, as judged). The fixture has
+// The 12 C16 fixture emails land in the Fynd Retail ops inbox (threaded by content, as judged). The fixture has
 // no senders, so the demo gives them fictional colleagues; text and timestamps are unchanged.
 const C16_SENDERS: Record<string, { name: string; email: string }> = {
   E01: { name: "Arjun Mehta", email: "arjun.mehta@fynd-retail.demo" },
