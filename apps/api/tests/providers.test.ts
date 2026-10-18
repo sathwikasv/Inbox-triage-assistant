@@ -78,7 +78,7 @@ describe("Yahoo over OAuth 2.0", () => {
     expect(calls[0]).toMatch(/get_token/);
 
     const status = await (await fetch(`${base}/providers/yahoo/status`, { headers: { cookie } })).json();
-    expect(status).toEqual({ configured: true, connected: true, email: "riya@yahoo.com" });
+    expect(status).toEqual({ configured: true, connected: true, email: "riya@yahoo.com", accounts: [{ email: "riya@yahoo.com", can_send: false }] });
     expect(JSON.stringify(status)).not.toMatch(/ACCESS|REFRESH/);
 
     const send = await fetch(`${base}/providers/yahoo/send`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ to: [{ email: "a@b.co" }], cc: [], subject: "Re: x", body: "Hi", in_reply_to: null }) });
@@ -138,5 +138,45 @@ describe("AI reply drafts", () => {
 
   it("validates the request shape", async () => {
     expect((await post({ ...request, tone: "angry" })).status).toBe(400);
+  });
+});
+
+describe("several Yahoo accounts in one browser session", () => {
+  it("connects two accounts without overwriting, and manages them independently", async () => {
+    configure();
+    const who: Record<string, string> = {};
+    yahooHttp.fetch = async (url, init) => {
+      const u = String(url);
+      if (u.includes("get_token")) {
+        const code = new URLSearchParams(String(init?.body)).get("code")!;
+        who.last = code === "code-a" ? "a@yahoo.com" : "b@yahoo.com";
+        return new Response(JSON.stringify({ access_token: `ACCESS-${code}`, refresh_token: `REFRESH-${code}`, expires_in: 3600 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ email: who.last }), { status: 200 });
+    };
+    const connect = async (code: string, cookie?: string, email?: string) => {
+      const start = await fetch(`${base}/providers/yahoo/start${email ? `?email=${email}` : ""}`, { redirect: "manual", headers: cookie ? { cookie } : {} });
+      const ck = cookie ?? start.headers.get("set-cookie")!.split(";")[0];
+      const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+      expect((await fetch(`${base}/providers/yahoo/callback?code=${code}&state=${state}`, { headers: { cookie: ck } })).status).toBe(200);
+      return { ck, location: start.headers.get("location")! };
+    };
+    const first = await connect("code-a");
+    const second = await connect("code-b", first.ck, "b@yahoo.com");
+    expect(new URL(second.location).searchParams.get("login_hint")).toBe("b@yahoo.com");
+    const status = await (await fetch(`${base}/providers/yahoo/status`, { headers: { cookie: first.ck } })).json();
+    expect(status.accounts.map((x: { email: string }) => x.email).sort()).toEqual(["a@yahoo.com", "b@yahoo.com"]);
+    expect(status.email).toBe("b@yahoo.com"); // the latest is the default
+    // a request that names the account reaches that account; others are untouched
+    const send = (email: string) => fetch(`${base}/providers/yahoo/send`, { method: "POST", headers: { cookie: first.ck, "content-type": "application/json" }, body: JSON.stringify({ to: [{ email: "x@y.co" }], cc: [], subject: "Re: x", body: "Hi", in_reply_to: null, email }) });
+    expect((await send("a@yahoo.com")).status).toBe(403); // neither has mail-w yet
+    expect((await send("nobody@yahoo.com")).status).toBe(401);
+    // disconnecting one leaves the other connected
+    await fetch(`${base}/providers/yahoo/disconnect?email=b@yahoo.com`, { method: "POST", headers: { cookie: first.ck } });
+    const after = await (await fetch(`${base}/providers/yahoo/status`, { headers: { cookie: first.ck } })).json();
+    expect(after.accounts.map((x: { email: string }) => x.email)).toEqual(["a@yahoo.com"]);
+    expect(after.email).toBe("a@yahoo.com");
+    await fetch(`${base}/providers/yahoo/disconnect`, { method: "POST", headers: { cookie: first.ck } });
+    expect((await (await fetch(`${base}/providers/yahoo/status`, { headers: { cookie: first.ck } })).json()).accounts).toEqual([]);
   });
 });

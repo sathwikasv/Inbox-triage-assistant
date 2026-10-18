@@ -14,6 +14,24 @@ const UserSchema = new Schema(
       scope: { type: String, default: null },
       linked_at: { type: Date, default: null },
     },
+    // More Gmail / Google Workspace accounts linked from inside the app (the primary one is `google` above).
+    google_accounts: {
+      type: [
+        new Schema(
+          {
+            sub: { type: String, default: null },
+            email: { type: String, required: true, lowercase: true, maxlength: 254 },
+            company: { type: String, default: null, maxlength: 80 },
+            refresh_enc: { type: String, default: null }, // encrypted; never sent to the browser
+            scope: { type: String, default: null },
+            linked_at: { type: Date, default: null },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
+    google_company: { type: String, default: null, maxlength: 80 }, // company label of the primary Google account
     timezone: { type: String, default: "Asia/Kolkata", maxlength: 64 },
     use: { type: String, enum: ["work", "personal", "both"], default: "both" },
     onboarding_completed: { type: Boolean, default: false },
@@ -40,5 +58,9 @@ export const publicUser = (u: UserDoc) => ({
   onboarding_completed: u.onboarding_completed,
   has_password: !!u.password_hash,
   google: u.google?.sub ? { email: u.google.email, gmail: !!u.google.refresh_enc } : null,
+  google_accounts: [
+    ...(u.google?.sub && u.google.refresh_enc ? [{ email: u.google.email, company: u.google_company ?? null, primary: true }] : []),
+    ...(u.google_accounts ?? []).filter((a) => a.refresh_enc).map((a) => ({ email: a.email, company: a.company ?? null, primary: false })),
+  ],
   created_at: (u as unknown as { created_at: Date }).created_at,
 });

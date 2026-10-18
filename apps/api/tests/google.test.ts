@@ -124,3 +124,78 @@ describe("Continue with Google", () => {
     expect((await get("/auth/google/token", auth)).status).toBe(404);
   });
 });
+
+describe("several Gmail accounts linked to one person", () => {
+  /** Google's endpoints, answering as whichever account is being authorised. */
+  function fakeAccounts() {
+    let current = { sub: "g-1", email: "riya@gmail.com" };
+    googleHttp.fetch = async (url, init) => {
+      const u = String(url);
+      if (u === "https://oauth2.googleapis.com/token") {
+        const body = new URLSearchParams(String(init?.body));
+        if (body.get("grant_type") === "refresh_token") return Response.json({ access_token: `ya29.for-${body.get("refresh_token")}`, expires_in: 3599, scope: "x" });
+        const code = body.get("code")!;
+        current = code === "code-work" ? { sub: "g-2", email: "riya@acme.com" } : { sub: "g-1", email: "riya@gmail.com" };
+        return Response.json({ access_token: "ya29.x", expires_in: 3599, refresh_token: `1//refresh-${current.email}`, id_token: "idtok", scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly" });
+      }
+      if (u.startsWith("https://oauth2.googleapis.com/tokeninfo")) return Response.json({ aud: "cid.apps.googleusercontent.com", iss: "https://accounts.google.com", sub: current.sub, email: current.email, email_verified: "true", name: "Riya Sharma" });
+      return Response.json({}, { status: 200 });
+    };
+  }
+  async function link(auth: string, code: string, company?: string) {
+    const start = await get(`/auth/google/start?link=1${company ? `&company=${encodeURIComponent(company)}` : ""}`, auth);
+    const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+    return get(`/auth/google/callback?code=${code}&state=${state}`, `${auth}; ${cookieOf(start, "td_gstate")}`);
+  }
+  const call = (method: string, path: string, auth: string, body?: unknown) => fetch(base + path, { method, headers: { cookie: auth, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+
+  it("adds a second account to the signed-in person without replacing the first", async () => {
+    fakeAccounts();
+    const { auth } = await signInWithGoogle();
+    const cb = await link(auth, "code-work", "Acme Corp");
+    expect(cb.headers.get("location")).toBe("http://localhost:5173/dashboard");
+    const list = await (await call("GET", "/auth/google/accounts", auth)).json();
+    expect(list.accounts).toEqual([
+      { email: "riya@gmail.com", company: null, primary: true },
+      { email: "riya@acme.com", company: "Acme Corp", primary: false },
+    ]);
+    const me = await (await get("/auth/me", auth)).json();
+    expect(me.user.email).toBe("riya@gmail.com"); // still signed in as the first account
+    expect(JSON.stringify(me)).not.toMatch(/refresh|ya29/);
+    expect(await User.countDocuments({})).toBe(1);
+  });
+
+  it("hands out the token of the account that was asked for, and the primary one by default", async () => {
+    fakeAccounts();
+    const { auth } = await signInWithGoogle();
+    await link(auth, "code-work", "Acme Corp");
+    expect((await (await call("GET", "/auth/google/token", auth)).json()).email).toBe("riya@gmail.com");
+    const work = await (await call("GET", "/auth/google/token?email=riya@acme.com", auth)).json();
+    expect(work).toMatchObject({ email: "riya@acme.com", company: "Acme Corp", access_token: "ya29.for-1//refresh-riya@acme.com" });
+    expect((await call("GET", "/auth/google/token?email=other@x.com", auth)).status).toBe(404);
+  });
+
+  it("relabels the company, and disconnects one account while the other stays connected", async () => {
+    const calls: string[] = [];
+    fakeAccounts();
+    const inner = googleHttp.fetch;
+    googleHttp.fetch = async (url, init) => (calls.push(String(url)), inner(url, init));
+    const { auth } = await signInWithGoogle();
+    await link(auth, "code-work");
+    await call("PATCH", "/auth/google/accounts", auth, { email: "riya@acme.com", company: "Acme" });
+    await call("PATCH", "/auth/google/accounts", auth, { company: "Personal" }); // no email: the primary
+    let list = (await (await call("GET", "/auth/google/accounts", auth)).json()).accounts;
+    expect(list.map((a: { company: string }) => a.company)).toEqual(["Personal", "Acme"]);
+    await call("POST", "/auth/google/disconnect", auth, { email: "riya@acme.com" });
+    expect(calls.some((c) => c.startsWith("https://oauth2.googleapis.com/revoke"))).toBe(true);
+    list = (await (await call("GET", "/auth/google/accounts", auth)).json()).accounts;
+    expect(list.map((a: { email: string }) => a.email)).toEqual(["riya@gmail.com"]);
+    expect((await call("GET", "/auth/google/token", auth)).status).toBe(200);
+  });
+
+  it("only links accounts for someone who is signed in", async () => {
+    fakeAccounts();
+    const start = await get("/auth/google/start?link=1");
+    expect(start.headers.get("location")).toMatch(/google_error=.*Sign%20in%20first/);
+  });
+});
