@@ -43,7 +43,23 @@ export interface AssistRequest {
   subject: string;
   user_name: string;
   category?: string;
-  messages: AiReplyRequest["messages"];
+  thread_key?: string; // where the server keeps this conversation's memory (signed-in users)
+  participants?: string[];
+  messages: (AiReplyRequest["messages"][number] & { id?: string })[];
+}
+export interface ConversationMemory {
+  summary: string;
+  facts: string[];
+  tasks: { text: string; owner: string | null; due: string | null; done: boolean }[];
+  decisions: string[];
+  open_questions: string[];
+}
+export interface StoredMemory extends ConversationMemory {
+  thread_key: string;
+  subject: string;
+  participants: string[];
+  messages_read: number;
+  updated_at: string;
 }
 export interface AssistResult {
   status: "ok";
@@ -57,6 +73,23 @@ export interface AssistResult {
   category?: Category | null; // the model's opinion, applied as an AI decision (a person's choice still wins)
   category_reason?: string | null;
   automated?: boolean;
+  memory?: ConversationMemory | null;
+  memory_used?: { earlier_messages: number; related: string[] };
+  memory_saved?: boolean;
+}
+
+/** What the assistant remembers for the signed-in person; null when there is no account. */
+export async function listMemory(): Promise<StoredMemory[] | null> {
+  try {
+    const r = await fetch(`${base()}/ai/memory`, { credentials: "include" });
+    return r.ok ? ((await r.json()) as { items: StoredMemory[] }).items : null;
+  } catch {
+    return null;
+  }
+}
+export async function forgetMemory(threadKey?: string): Promise<number> {
+  const r = await fetch(`${base()}/ai/memory${threadKey ? `?thread_key=${encodeURIComponent(threadKey)}` : ""}`, { method: "DELETE", credentials: "include" });
+  return r.ok ? ((await r.json()) as { deleted: number }).deleted : 0;
 }
 
 /** Whether the server answers, and whether it has a model key. */
@@ -74,7 +107,7 @@ export async function assistantStatus(): Promise<{ server: "none" | "down" | "ok
 
 export async function aiAssist(req: AssistRequest): Promise<AssistResult | { status: "error"; error: string }> {
   try {
-    const r = await fetch(`${base()}/ai/assist`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
+    const r = await fetch(`${base()}/ai/assist`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
     const j = (await r.json().catch(() => ({}))) as AssistResult & { error?: string };
     if (r.ok && j.status === "ok") return j;
     return { status: "error", error: j.error ?? `assistant ${r.status}` };

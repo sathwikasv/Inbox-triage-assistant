@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { AlertTriangle, Brain, CheckCircle2, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import type { MailboxView, MailThread } from "@c16/core";
 import { useApp } from "../../store/app";
 import { lastMessageId, useAssistant } from "../../store/assistant";
@@ -51,6 +51,18 @@ export function AssistantCard({ view, thread }: { view: MailboxView; thread: Mai
         </span>
       </div>
 
+      {fresh && (r.memory_used?.earlier_messages || r.memory_used?.related.length || r.memory_saved) ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-violet-800 dark:text-violet-200">
+          <Brain className="h-3.5 w-3.5" />
+          {r.memory_used?.earlier_messages ? <span className="rounded-full bg-violet-100 px-2 py-0.5 dark:bg-violet-500/15">remembered {r.memory_used.earlier_messages} earlier message{r.memory_used.earlier_messages === 1 ? "" : "s"}</span> : null}
+          {r.memory_used?.related.map((s) => (
+            <span key={s} className="rounded-full bg-violet-100 px-2 py-0.5 dark:bg-violet-500/15">
+              related: {s}
+            </span>
+          ))}
+          {r.memory_saved && !r.memory_used?.earlier_messages && <span className="text-muted">notes saved for next time</span>}
+        </div>
+      ) : null}
       {fresh && (
         <div className="mt-3 space-y-2">
           <p className="text-sm leading-relaxed">{r.summary}</p>
@@ -62,6 +74,36 @@ export function AssistantCard({ view, thread }: { view: MailboxView; thread: Mai
                 </li>
               ))}
             </ul>
+          )}
+        </div>
+      )}
+      {fresh && r.memory && (r.memory.tasks.some((t) => !t.done) || r.memory.open_questions.length > 0) && (
+        <div className="mt-3 grid gap-2 rounded-xl bg-surface/70 p-3 text-xs sm:grid-cols-2">
+          {r.memory.tasks.some((t) => !t.done) && (
+            <div>
+              <div className="label-xs mb-1">Open tasks in this conversation</div>
+              <ul className="space-y-0.5">
+                {r.memory.tasks
+                  .filter((t) => !t.done)
+                  .map((t) => (
+                    <li key={t.text}>
+                      • {t.text}
+                      {t.owner ? <span className="text-muted"> · {t.owner}</span> : null}
+                      {t.due ? <span className="text-muted"> · due {t.due}</span> : null}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+          {r.memory.open_questions.length > 0 && (
+            <div>
+              <div className="label-xs mb-1">Still unanswered</div>
+              <ul className="space-y-0.5">
+                {r.memory.open_questions.map((q) => (
+                  <li key={q}>• {q}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}

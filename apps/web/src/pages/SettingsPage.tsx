@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Ban, CalendarDays, Check, Download, KeyRound, Loader2, Lock, Minus, RefreshCw, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, UploadCloud, Users } from "lucide-react";
 import { useAssistant } from "../store/assistant";
 import { useReviewItems } from "../lib/review";
 import { useAuth } from "../store/auth";
+import { forgetMemory, listMemory, type StoredMemory } from "../lib/ai";
 import { fixtureToCsv, type Role } from "@c16/core";
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
@@ -467,6 +468,7 @@ function AssistantSection() {
           </Button>
         </div>
       </Card>
+      <MemoryCard />
       <Card title="What it does, and what it never does">
         <ul className="space-y-2 text-sm">
           {[
@@ -489,5 +491,64 @@ function AssistantSection() {
         </p>
       </Card>
     </div>
+  );
+}
+
+/** What the assistant remembers per conversation, stored with the account; viewable and erasable. */
+function MemoryCard() {
+  const auth = useAuth();
+  const [items, setItems] = useState<StoredMemory[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const load = () => listMemory().then(setItems);
+  useEffect(() => {
+    load();
+  }, []);
+  if (!auth.user)
+    return (
+      <Card title="Memory" description="Sign in to let the assistant remember each conversation across visits and devices.">
+        <p className="text-sm text-muted">Without an account nothing is remembered: each conversation is read from the start.</p>
+      </Card>
+    );
+  return (
+    <Card title="Memory" description="For each conversation the assistant keeps notes: a summary, facts, tasks, decisions and open questions. A new email is read together with these notes and related conversations, instead of starting over. Email bodies are not stored.">
+      {items === null ? (
+        <p className="text-sm text-muted">Loading…</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted">Nothing remembered yet. Notes appear here as the assistant reads your conversations.</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {items.map((m) => (
+            <li key={m.thread_key} className="py-2.5">
+              <button onClick={() => setOpen(open === m.thread_key ? null : m.thread_key)} className="flex w-full items-center gap-3 text-left">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{m.subject || "(no subject)"}</span>
+                  <span className="block truncate text-xs text-muted">{m.summary}</span>
+                </span>
+                <span className="shrink-0 text-xs text-muted">
+                  {m.messages_read} read · {m.tasks.filter((t) => !t.done).length} open tasks
+                </span>
+              </button>
+              {open === m.thread_key && (
+                <div className="mt-2 space-y-1.5 rounded-xl bg-subtle p-3 text-xs">
+                  {m.facts.length > 0 && <p><b>Facts:</b> {m.facts.join("; ")}</p>}
+                  {m.tasks.length > 0 && <p><b>Tasks:</b> {m.tasks.map((t) => `${t.done ? "✓ " : ""}${t.text}${t.due ? ` (due ${t.due})` : ""}`).join("; ")}</p>}
+                  {m.decisions.length > 0 && <p><b>Decisions:</b> {m.decisions.join("; ")}</p>}
+                  {m.open_questions.length > 0 && <p><b>Open questions:</b> {m.open_questions.join("; ")}</p>}
+                  {m.participants.length > 0 && <p className="text-muted">With {m.participants.join(", ")}</p>}
+                  <button onClick={() => forgetMemory(m.thread_key).then(load)} className="font-medium text-rose-600 hover:underline">
+                    Forget this conversation
+                  </button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {!!items?.length && (
+        <Button size="sm" variant="ghost" className="mt-3 text-rose-600" onClick={() => window.confirm("Forget everything the assistant remembers?") && forgetMemory().then(load)}>
+          <Trash2 className="h-4 w-4" /> Forget everything
+        </Button>
+      )}
+    </Card>
   );
 }
