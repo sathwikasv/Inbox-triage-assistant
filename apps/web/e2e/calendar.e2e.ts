@@ -75,5 +75,6 @@ test("without Calendar permission the person is offered to allow it through the 
   await setup(page, { calendarScope: false });
   await page.goto("/calendar");
   await expect(page.getByText("No calendar connected")).toBeVisible();
+  await expect(page.getByText(/has not given Triagedesk access to your Calendar/)).toBeVisible(); // says why, not just "not connected"
   await expect(page.getByRole("button", { name: /Connect Google Calendar/ })).toBeEnabled();
 });

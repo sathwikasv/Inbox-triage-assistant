@@ -17,7 +17,7 @@ import {
   type MailMessage,
 } from "@c16/core";
 import { DEMO_EVENTS, DEMO_MAILBOX } from "../lib/demoMailbox";
-import { CALENDAR_PROVIDERS, MAIL_PROVIDERS, serverGmailAccounts, setting } from "../lib/providers";
+import { CALENDAR_PROVIDERS, MAIL_PROVIDERS, calendarProblem, serverGmailAccounts, setting } from "../lib/providers";
 import { useApp } from "./app";
 import { useAssistant } from "./assistant";
 import { useAuth } from "./auth";
@@ -99,6 +99,8 @@ interface MailboxStore {
   refreshCalendars(): Promise<void>;
   /** After a reload: reconnects calendars the server still holds a grant for. */
   restoreCalendars(): Promise<void>;
+  /** Why no calendar is connected (null when one is, or when nothing went wrong). */
+  calendarNote: string | null;
   addToCalendar(view: MailboxView, proposalId: string, edits: Parameters<typeof acceptProposal>[3]): Promise<boolean>;
   importFile(text: string, name: string): boolean;
   removeImport(accountId: string): void;
@@ -150,6 +152,7 @@ export const useMailbox = create<MailboxStore>((set, get) => {
     })(),
     connected: [],
     calendars: [],
+    calendarNote: null,
     busy: {},
     known: (() => {
       try {
@@ -298,8 +301,9 @@ export const useMailbox = create<MailboxStore>((set, get) => {
       for (const [name, client] of Object.entries(CALENDAR_PROVIDERS)) {
         if (!client.restore || client.setupNeeded() || get().calendars.some((c) => c.calendar === name)) continue;
         const r = await client.restore().catch(() => null);
-        if (r) set({ calendars: [...get().calendars, { calendar: name as CalendarLink["calendar"], ...r }] });
+        if (r) set({ calendars: [...get().calendars, { calendar: name as CalendarLink["calendar"], ...r }], calendarNote: null });
       }
+      if (!get().calendars.length) set({ calendarNote: calendarProblem() });
     },
 
     async addToCalendar(view, proposalId, edits) {
