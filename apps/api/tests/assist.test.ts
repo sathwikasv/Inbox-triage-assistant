@@ -128,6 +128,12 @@ describe("without a database", () => {
     const r = await fetch(`${base}/runs`);
     expect(r.status).toBe(503);
   });
+
+  it("says accounts need the database instead of pretending to sign anyone in", async () => {
+    const r = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "a@b.co", password: "x" }) });
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).toMatch(/MONGODB_URI/);
+  });
 });
 
 describe("formatReply", () => {
