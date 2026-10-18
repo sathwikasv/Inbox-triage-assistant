@@ -303,9 +303,19 @@ function serverCalendarSignIn() {
 let problem: string | null = null;
 export const calendarProblem = () => problem;
 
+// Only the calendar.events permission is requested. It covers listing and creating events, but NOT the calendar's own
+// metadata (calendars/primary answers 403 "insufficient authentication scopes"), so the calendar's address comes
+// from the Google login, or from the events response (its title is the address for a primary calendar).
+async function fetchEvents(): Promise<{ events: CalendarEvent[]; title: string }> {
+  const from = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const to = new Date(Date.now() + 60 * 86_400_000).toISOString();
+  const r = await call<{ items?: GEvent[]; summary?: string }>("calendar", `${CAL}?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from)}&timeMax=${encodeURIComponent(to)}`);
+  return { events: (r.items ?? []).map(toEvent), title: r.summary ?? "" };
+}
+
 async function loadCalendar(): Promise<{ address: string; events: CalendarEvent[] }> {
-  const me = await call<{ id: string }>("calendar", "https://www.googleapis.com/calendar/v3/calendars/primary");
-  return { address: me.id, events: await googleCalendar.list() };
+  const { events, title } = await fetchEvents();
+  return { address: serverAccounts[0]?.email ?? title ?? "primary", events };
 }
 
 export const googleCalendar: CalendarProviderClient = {
@@ -333,10 +343,7 @@ export const googleCalendar: CalendarProviderClient = {
     });
   },
   async list() {
-    const from = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    const to = new Date(Date.now() + 60 * 86_400_000).toISOString();
-    const r = await call<{ items?: GEvent[] }>("calendar", `${CAL}?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from)}&timeMax=${encodeURIComponent(to)}`);
-    return (r.items ?? []).map(toEvent);
+    return (await fetchEvents()).events;
   },
   async create(e) {
     // No attendees are added, so Google sends no invitations on the person's behalf.
