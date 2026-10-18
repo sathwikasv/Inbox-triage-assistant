@@ -147,7 +147,7 @@ Rules:
       }
     }
     if (reply) {
-      if (facts) for (const r of needsApproval(reply, facts).reasons) reasons.push({ text: `Needs an Approver: the draft ${r}.`, source: "rules" });
+      if (facts) for (const r of needsApproval(reply, facts).reasons) reasons.push({ text: `Needs an Approver: ${r.startsWith("the ") ? r : `the draft ${r}`}.`, source: "rules" });
       for (const r of sendRisks(reply)) if (!reasons.some((x) => x.text.includes(r))) reasons.push({ text: `Check before sending: the draft ${r}.`, source: "rules" });
     }
     return {
