@@ -8,6 +8,7 @@ import { classifyRouter } from "./routes/classify.js";
 import { yahooRouter } from "./routes/yahoo.js";
 import { aiRouter } from "./routes/ai.js";
 import { authRouter } from "./routes/auth.js";
+import { googleRouter } from "./routes/google.js";
 import { aiEnabled, aiModel } from "./services/ai.js";
 
 export function createApp() {
@@ -26,6 +27,7 @@ export function createApp() {
   app.use("/classify", classifyRouter);
   app.use("/providers/yahoo", yahooRouter);
   app.use("/ai", aiRouter);
+  app.use("/auth/google", googleRouter);
   app.use("/auth", authRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "not found" }));

@@ -62,13 +62,13 @@ authRouter.post(
       const mins = Math.ceil((u.locked_until.getTime() - Date.now()) / 60_000);
       return res.status(429).json({ error: `Too many wrong passwords. Try again in ${mins} minute${mins === 1 ? "" : "s"}, or reset your password.` });
     }
-    const ok = await verifyPassword(password, u?.password_hash ?? DUMMY_HASH); // same work whether or not the account exists
+    const ok = (await verifyPassword(password, u?.password_hash || DUMMY_HASH)) && !!u?.password_hash; // same work whether or not the account exists
     if (!u || !ok) {
       if (u) {
         const fails = u.failed_logins + 1;
         await User.updateOne({ _id: u._id }, fails >= MAX_FAILS ? { failed_logins: 0, locked_until: new Date(Date.now() + LOCK_MS) } : { failed_logins: fails });
       }
-      return res.status(401).json({ error: "Wrong email or password." });
+      return res.status(401).json({ error: "Wrong email or password. If you signed up with Google, use Continue with Google." });
     }
     await User.updateOne({ _id: u._id }, { failed_logins: 0, locked_until: null, last_login_at: new Date() });
     setAuth(req, res, String(u._id), u.session_version);
