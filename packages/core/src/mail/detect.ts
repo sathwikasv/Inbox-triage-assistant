@@ -14,8 +14,21 @@ export function detectPromotion(m: Pick<MailMessage, "from" | "subject" | "body"
     const promo = first(/\b(\d{1,2}% off|sale|deal|offer|promo code|coupon|limited time|webinar|new arrivals|this week'?s|digest|newsletter)\b/i, `${m.subject} ${m.body}`);
     if (promo) return `bulk sender (${m.from.email}) with "${promo}"`;
   }
-  const promo = first(/\b\d{1,2}% off\b|\bpromo code\b|\buse code [A-Z0-9]{4,}\b|\bshop now\b|\blimited[- ]time offer\b/i, `${m.subject} ${m.body}`);
-  return promo ? `promotional wording "${promo}"` : null;
+  const text = `${m.subject} ${m.body}`;
+  const promo = first(
+    /\b\d{1,2}% off\b|\bpromo code\b|\buse code [A-Z0-9]{4,}\b|\bshop now\b|\blimited[- ]time offer\b|\b(buy|order|book|register|enrol+|sign up|subscribe|apply|claim|grab|get started|try it)\b[^.\n]{0,25}\b(now|today|free|here|before it)\b|\b(exclusive|special|festive|flash|mega|clearance|early[- ]bird) (offer|deal|sale|discount|access|pricing)\b|\b(free|complimentary) (trial|demo|consultation|ebook|e-book|webinar|course|gift|quote)\b|\b(webinar|masterclass|bootcamp|workshop|summit)\b[^.\n]{0,40}\b(register|join|seats?|sign up)\b|\bdiscount(ed)?\b|\bcashback\b|\bgiveaway\b|\b(last chance|don'?t miss|hurry|ends (today|soon|tonight)|only \d+ (left|seats|spots))\b|\bboost your\b|\bgrow your (business|sales|revenue)\b/i,
+    text,
+  );
+  if (promo) return `promotional wording "${promo}"`;
+  // Cold outreach: a stranger selling or recruiting.
+  const cold = first(
+    /\b(i (came|stumbled) across your (profile|company|website)|we help (companies|businesses|brands|teams)|our (services|solutions|platform|agency|team) (can|will|help)|(schedule|book|hop on) a (quick |short |15[- ]minute )?(call|demo)[^.\n]{0,40}(to show|to discuss|to explore)|reaching out (to|because)|dear (sir|madam|customer|user|valued)|congratulations[,!]? you|you('ve| have) been (selected|chosen)|job opportunity|hiring now|work from home)\b/i,
+    text,
+  );
+  if (cold) return `unsolicited outreach ("${cold}")`;
+  // Bulk-style sender addresses with marketing language.
+  if (/^(hello|hi|team|info|contact|sales|care|offers?|deals?|rewards?|events?|community|learn|academy|jobs|careers)@/i.test(m.from.email) && /\b(learn more|read more|discover|view (details|offer|plans)|upgrade|plans? (start|from)|starting (at|from))\b/i.test(text)) return `bulk sender (${m.from.email}) with marketing language`;
+  return null;
 }
 
 /** Phishing and scams: suspicious, separate from newsletters and from prompt injection. */
