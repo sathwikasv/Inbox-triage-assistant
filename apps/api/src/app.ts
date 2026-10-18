@@ -7,6 +7,7 @@ import { runsRouter } from "./routes/runs.js";
 import { classifyRouter } from "./routes/classify.js";
 import { yahooRouter } from "./routes/yahoo.js";
 import { aiRouter } from "./routes/ai.js";
+import { authRouter } from "./routes/auth.js";
 import { aiEnabled, aiModel } from "./services/ai.js";
 
 export function createApp() {
@@ -25,6 +26,7 @@ export function createApp() {
   app.use("/classify", classifyRouter);
   app.use("/providers/yahoo", yahooRouter);
   app.use("/ai", aiRouter);
+  app.use("/auth", authRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "not found" }));
   // Malformed JSON bodies and unexpected errors come back as JSON, never as an HTML stack trace.
