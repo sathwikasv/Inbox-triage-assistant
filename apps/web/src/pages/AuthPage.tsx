@@ -139,7 +139,7 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
           <h2 className="text-3xl font-semibold leading-tight tracking-tight">One inbox. Every account. Nothing sent without you.</h2>
           <ul className="mt-6 space-y-3 text-white/85">
             {[
-              [Inbox, "Gmail, Outlook and Yahoo Mail in one place"],
+              [Inbox, "Gmail and Yahoo Mail, from every company, in one place"],
               [Sparkles, "Summaries and reply drafts from the AI assistant"],
               [ShieldCheck, "Risky replies and suspicious mail flagged for review"],
             ].map(([Icon, t]) => {
@@ -343,7 +343,7 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
             </p>
           )}
           <p className="mt-8 flex items-center justify-center gap-1.5 text-xs text-muted">
-            <Lock className="h-3.5 w-3.5" /> Use your Triagedesk password here, never your Gmail or Outlook password.
+            <Lock className="h-3.5 w-3.5" /> Use your Triagedesk password here, never your Gmail or Yahoo password.
           </p>
         </div>
       </main>

@@ -1,12 +1,13 @@
 # Triagedesk: unified inbox with a careful assistant
 
-One inbox for Gmail, Outlook and Yahoo Mail. Every email is sorted into a category with a priority, a reason and a next step. Deadlines become tasks, meeting requests become calendar events, and reply drafts are written for you to review. **Nothing is sent, scheduled or archived without your confirmation.**
+One inbox for every Gmail and Yahoo Mail account you have, from any company. Every email is sorted into a category with a priority, a reason and a next step. Deadlines become tasks, meeting requests become calendar events, and reply drafts are written for you to review. **Nothing is sent, scheduled or archived without your confirmation.**
 
 Built for the Fynd × NMIMS case C16 (inbox triage and reply drafts). The plan, roles and timeline are in [C16_PLAN.md](./C16_PLAN.md).
 
 **Live:** https://triagedesk-fawn.vercel.app (Vercel: the web app plus the server under /api)
 
 ## What it does
+- **Several accounts, several companies.** Connect as many Gmail / Google Workspace and Yahoo accounts as you have; each is labelled with a company ("Fynd Retail", "Client B", "Personal"), filterable in the inbox by company or by mailbox, and managed separately (sync, allow sending, disconnect) under Settings.
 - **Unified inbox.** Accounts from several providers in one list with account filters, search across accounts, read/unread, star, attachments, conversation view, and Drafts / Sent / Archive / Spam.
 - **Categories.** Urgent · Requires action · To delegate · Meetings · Waiting for response · Follow-up · Important · FYI · Promotions · Spam or suspicious. Each shows its reason, and you can override it.
   - Newsletters are never treated as spam.
@@ -35,7 +36,7 @@ Built for the Fynd × NMIMS case C16 (inbox triage and reply drafts). The plan, 
 - **Dashboard.** Unread, urgent, pending tasks, deadlines, today's meetings, follow-ups, mailboxes and recent activity.
 
 ## Demo and connected mode
-- **Demo mode** (only while no provider is configured): three labelled demo accounts (Gmail, Outlook, Yahoo) with 26 fictional emails, including the 12 C16 case emails, and a demo calendar. Sends and calendar changes in demo mode are simulated and say so. Turn it off in Settings → Accounts.
+- **Demo mode** (only while no provider is configured): three labelled demo accounts (Gmail, a second company's mailbox, Yahoo) with 26 fictional emails, including the 12 C16 case emails, and a demo calendar. Sends and calendar changes in demo mode are simulated and say so. Turn it off in Settings → Accounts.
 - **Connected mode:** real mailboxes after you add the provider app IDs (below).
   - Mail is read-only until you allow sending for that account.
   - Calendars are connected separately from mail.
@@ -58,7 +59,6 @@ Web app (public; can also be entered in Settings → Integrations):
 | Variable | Used for |
 |---|---|
 | `VITE_GOOGLE_CLIENT_ID` | Gmail and Google Calendar sign-in |
-| `VITE_MS_CLIENT_ID` | Outlook mail and calendar sign-in |
 | `VITE_API_URL` | The server, for Yahoo Mail and AI replies |
 
 Server (secrets; never commit `.env`):
@@ -79,7 +79,7 @@ Step-by-step provider setup: [docs/providers.md](docs/providers.md). Deployment:
     - content threading, type and urgency rules, injection guard, date/owner/tracker extraction, correction and resolution handling
     - categories, tasks, meeting proposals, follow-ups
     - reply templates, the claims check and the send gate
-  - `apps/web`: React + Vite + Tailwind. Provider clients for Gmail (Google Identity Services), Outlook (Microsoft MSAL) and Yahoo (via the server), each behind one interface. Gmail and Outlook tokens stay in the tab's memory.
+  - `apps/web`: React + Vite + Tailwind. Provider clients for Gmail (Google Identity Services) and Yahoo (via the server), each behind one interface, with several accounts per provider at once. Gmail and Outlook tokens stay in the tab's memory.
   - `apps/api`: Express. Yahoo OAuth with IMAP and SMTP, AI reply drafts checked by the same claims rules, and the case-evaluation API with MongoDB.
 - **AI:** classification and drafting are rules-first. The optional Gemini model only proposes a type or rewrites a draft. Its output is validated and checked, and the app labels which one produced each result.
 

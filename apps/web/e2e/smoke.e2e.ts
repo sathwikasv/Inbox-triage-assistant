@@ -87,8 +87,9 @@ test("a person can override a category and it persists", async ({ page }) => {
 test("connecting a provider without its app ID explains what is missing instead of pretending", async ({ page }) => {
   await page.goto("/settings");
   await expect(page.getByRole("button", { name: /Connect Gmail/ })).toBeDisabled();
-  await expect(page.getByRole("button", { name: /Connect Outlook$/ })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Connect Outlook Calendar" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Connect other Gmail account/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Connect Yahoo Mail/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Outlook/ })).toHaveCount(0);
   await page.goto("/settings?s=integrations");
   await expect(page.getByText("Authorised JavaScript origins")).toBeVisible();
 });

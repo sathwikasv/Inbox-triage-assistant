@@ -3,7 +3,7 @@ import { AlarmClock, AlertTriangle, ArrowRight, CalendarDays, Clock, Hourglass, 
 import { formatDate, type Category, type FollowUpKind, type MailboxView } from "@c16/core";
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
-import { CAT, CATS, CategoryBadge, PriorityBadge, ProviderMark, accountNote, ago, localTime, nameOf, whenIso, ymdIn } from "../components/mail/common";
+import { CAT, CATS, CategoryBadge, CompanyBadge, PriorityBadge, ProviderMark, accountNote, ago, localTime, nameOf, whenIso, ymdIn } from "../components/mail/common";
 import { queue, useThreadContext } from "../lib/folders";
 import { useReviewItems } from "../lib/review";
 import { AssistantOffer, ConnectMailboxes, ReconnectBar } from "../components/Onboarding";
@@ -364,7 +364,10 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-3">
                       <ProviderMark provider={a.provider} size="md" />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{a.address}</div>
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <span className="truncate">{a.address}</span>
+                          <CompanyBadge account={a} />
+                        </div>
                         <div className="text-xs text-muted">
                           {accountNote(a)} · {threads.length} conversations
                         </div>

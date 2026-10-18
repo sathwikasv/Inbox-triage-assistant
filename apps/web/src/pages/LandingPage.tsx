@@ -5,7 +5,7 @@ import { useApp } from "../store/app";
 import { cn } from "../ui";
 
 const FEATURES: { icon: LucideIcon; title: string; text: string; cls: string }[] = [
-  { icon: Inbox, title: "One inbox for every account", text: "Gmail, Outlook and Yahoo Mail side by side, with one search and one list of what needs you.", cls: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300" },
+  { icon: Inbox, title: "One inbox for every account", text: "Every Gmail and Yahoo Mail account, from every company, side by side, with one search and one list of what needs you.", cls: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300" },
   { icon: Tags, title: "Sorted the moment it lands", text: "Urgent, Requires action, Meetings, Waiting, Promotions, Spam and more, each with the reason it was sorted that way.", cls: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300" },
   { icon: ListTodo, title: "Deadlines become tasks", text: "\"Submit the report by Monday 4 PM\" turns into a dated task in the sender's time zone, once you add it.", cls: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300" },
   { icon: CalendarClock, title: "Meetings, with clashes caught", text: "Requests, invitations and reschedules appear on your week, with conflicts shown before you accept.", cls: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" },
@@ -15,7 +15,7 @@ const FEATURES: { icon: LucideIcon; title: string; text: string; cls: string }[]
 
 const STEPS = [
   { title: "Create your account", text: "Your name, email and a password for Triagedesk. Never your email password." },
-  { title: "Connect your mailboxes", text: "Sign in on Google, Microsoft or Yahoo's own page. Read-only until you allow sending." },
+  { title: "Connect your mailboxes", text: "Sign in on Google or Yahoo's own page, once per account. Read-only until you allow sending." },
   { title: "Work from your dashboard", text: "See what needs you, answer with checked drafts, and keep tasks and meetings in one place." },
 ];
 
@@ -111,7 +111,7 @@ export default function LandingPage() {
             <br />
             <span className="bg-gradient-to-r from-[#0B57D0] via-[#7c4dff] to-[#e5484d] bg-clip-text text-transparent">Every reply, checked.</span>
           </h1>
-          <p className="mt-5 max-w-xl text-lg text-fg/75">Triagedesk brings Gmail, Outlook and Yahoo Mail into one inbox, sorts each email by what it needs, turns deadlines into tasks and meetings into calendar events, and drafts replies for you to approve.</p>
+          <p className="mt-5 max-w-xl text-lg text-fg/75">Triagedesk brings all your Gmail and Yahoo Mail accounts, from every company, into one inbox, sorts each email by what it needs, turns deadlines into tasks and meetings into calendar events, and drafts replies for you to approve.</p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link to="/signup" className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-brand-fg shadow-pop hover:bg-brand/90">
               Create your free account <ArrowRight className="h-4 w-4" />
@@ -134,8 +134,8 @@ export default function LandingPage() {
             <span>Works with</span>
             {[
               ["G", "bg-[#EA4335]", "Gmail"],
-              ["O", "bg-[#0078D4]", "Outlook"],
               ["Y", "bg-[#6001D2]", "Yahoo Mail"],
+              ["+", "bg-slate-500", "Several accounts each"],
             ].map(([l, c, n]) => (
               <span key={n} className="inline-flex items-center gap-1.5 font-medium text-fg/80">
                 <span className={cn("grid h-5 w-5 place-items-center rounded-md text-[10px] font-bold text-white", c)}>{l}</span> {n}

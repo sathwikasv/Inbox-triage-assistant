@@ -11,7 +11,9 @@ import { useMailbox, useMailboxView } from "../store/mailbox";
 import { CALENDAR_PROVIDERS, MAIL_PROVIDERS, saveSetting, setting } from "../lib/providers";
 import { DEMO_MAILBOX } from "../lib/demoMailbox";
 import { PERMISSIONS, ROLES } from "../lib/permissions";
-import { ProviderMark, accountNote, localTime } from "../components/mail/common";
+import { CompanyBadge, ProviderMark, accountNote, localTime } from "../components/mail/common";
+import { ConnectTiles } from "../components/Onboarding";
+import type { MailAccount } from "@c16/core";
 import { Badge, Button, Segmented, Tip, cn } from "../ui";
 
 type Section = "accounts" | "assistant" | "integrations" | "preferences" | "safety" | "import";
@@ -82,66 +84,104 @@ export default function SettingsPage() {
   );
 }
 
+function CompanyEditor({ account }: { account: MailAccount }) {
+  const setCompany = useMailbox((m) => m.setAccountCompany);
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState(account.company ?? "");
+  if (!editing)
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        {account.company ? <CompanyBadge account={account} /> : <span className="text-xs text-muted">no company</span>}
+        <button onClick={() => (setV(account.company ?? ""), setEditing(true))} aria-label={`Edit company for ${account.address}`} className="text-xs font-medium text-brand hover:underline">
+          {account.company ? "Edit" : "Add company"}
+        </button>
+      </span>
+    );
+  const save = () => {
+    setCompany(account.id, v);
+    setEditing(false);
+  };
+  return (
+    <form
+      className="inline-flex items-center gap-1.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+    >
+      <input autoFocus value={v} onChange={(e) => setV(e.target.value)} maxLength={80} aria-label={`Company for ${account.address}`} placeholder="Company or label" className="h-7 w-40 rounded-lg border border-line bg-surface px-2 text-xs outline-none focus:border-brand/60" />
+      <Button size="xs" variant="primary" type="submit">
+        Save
+      </Button>
+      <Button size="xs" variant="ghost" type="button" onClick={() => setEditing(false)}>
+        Cancel
+      </Button>
+    </form>
+  );
+}
+
 function Accounts() {
   const view = useMailboxView();
-  const { connect, refresh, disconnect, enableSend, removeImport, connectCalendar, calendars, busy } = useMailbox();
+  const { refresh, disconnect, enableSend, removeImport, connectCalendar, calendars, busy } = useMailbox();
   const { prefs, setPrefs } = useApp();
+  const groups = new Map<string, MailAccount[]>();
+  for (const a of view.accounts) groups.set(a.company ?? "No company", [...(groups.get(a.company ?? "No company") ?? []), a]);
   return (
     <div className="space-y-4">
-      <Card title="Mailboxes" description="Each account signs in with its provider's own consent screen. Your passwords are never entered here.">
-        <ul className="divide-y divide-line">
-          {view.accounts.map((a) => (
-            <li key={a.id} className="flex flex-wrap items-center gap-3 py-3">
-              <ProviderMark provider={a.provider} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{a.address}</div>
-                <div className="text-xs text-muted">
-                  {accountNote(a)}
-                  {a.mode === "connected" && a.last_sync_at ? ` · synced ${localTime(a.last_sync_at, prefs.timezone)}` : ""}
-                </div>
+      <Card title="Mailboxes" description="Connect as many Gmail and Yahoo accounts as you need, from different companies. Each signs in on its provider's own consent screen. Your passwords are never entered here.">
+        <div className="space-y-5">
+          {[...groups.entries()].map(([company, accounts]) => (
+            <section key={company} aria-label={company}>
+              <div className="label-xs mb-1">
+                {company} <span className="font-normal normal-case text-muted">· {accounts.length} mailbox{accounts.length === 1 ? "" : "es"}</span>
               </div>
-              {a.mode === "demo" && <Badge tone="amber">demo data</Badge>}
-              {a.mode === "connected" && (
-                <>
-                  {a.send_enabled ? (
-                    <Badge tone="green">can send after your approval</Badge>
-                  ) : (
-                    <Button size="xs" disabled={busy[`send-permission:${a.id}`]} onClick={() => enableSend(a.id)}>
-                      <Lock className="h-3.5 w-3.5" /> Allow sending
-                    </Button>
-                  )}
-                  <Button size="xs" disabled={busy[`refresh:${a.id}`]} onClick={() => refresh(a.id)}>
-                    <RefreshCw className={cn("h-3.5 w-3.5", busy[`refresh:${a.id}`] && "animate-spin")} /> Refresh
-                  </Button>
-                  <Button size="xs" variant="ghost" onClick={() => disconnect(a.id)}>
-                    Disconnect
-                  </Button>
-                </>
-              )}
-              {a.mode === "import" && (
-                <Button size="xs" variant="ghost" onClick={() => removeImport(a.id)}>
-                  <Trash2 className="h-3.5 w-3.5" /> Remove
-                </Button>
-              )}
-            </li>
+              <ul className="divide-y divide-line rounded-xl border border-line px-3">
+                {accounts.map((a) => (
+                  <li key={a.id} className="flex flex-wrap items-center gap-3 py-3">
+                    <ProviderMark provider={a.provider} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{a.address}</div>
+                      <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                        <span>
+                          {accountNote(a)}
+                          {a.mode === "connected" && a.last_sync_at ? ` · synced ${localTime(a.last_sync_at, prefs.timezone)}` : ""}
+                        </span>
+                        {a.mode !== "demo" && <CompanyEditor account={a} />}
+                      </div>
+                    </div>
+                    {a.mode === "demo" && <Badge tone="amber">demo data</Badge>}
+                    {a.mode === "connected" && (
+                      <>
+                        {a.send_enabled ? (
+                          <Badge tone="green">can send after your approval</Badge>
+                        ) : (
+                          <Button size="xs" disabled={busy[`send-permission:${a.id}`]} onClick={() => enableSend(a.id)}>
+                            <Lock className="h-3.5 w-3.5" /> Allow sending
+                          </Button>
+                        )}
+                        <Button size="xs" disabled={busy[`refresh:${a.id}`]} onClick={() => refresh(a.id)}>
+                          <RefreshCw className={cn("h-3.5 w-3.5", busy[`refresh:${a.id}`] && "animate-spin")} /> Sync
+                        </Button>
+                        <Button size="xs" variant="ghost" onClick={() => disconnect(a.id)}>
+                          Disconnect
+                        </Button>
+                      </>
+                    )}
+                    {a.mode === "import" && (
+                      <Button size="xs" variant="ghost" onClick={() => removeImport(a.id)}>
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          {(["gmail", "outlook", "yahoo"] as const).map((p) => {
-            const client = MAIL_PROVIDERS[p]!;
-            const need = client.setupNeeded();
-            return (
-              <Tip key={p} content={need ?? `Sign in to ${client.label} (read access first; sending is asked for separately)`}>
-                <span>
-                  <Button size="md" className="w-full justify-center" variant={need ? "secondary" : "primary"} disabled={!!need || busy[`connect:${p}`]} onClick={() => connect(p)}>
-                    {busy[`connect:${p}`] ? <Loader2 className="h-4 w-4 animate-spin" /> : <ProviderMark provider={p} size="xs" />} Connect {client.label}
-                  </Button>
-                </span>
-              </Tip>
-            );
-          })}
         </div>
-        {(["gmail", "outlook", "yahoo"] as const).some((p) => MAIL_PROVIDERS[p]!.setupNeeded()) && (
+        <div className="mt-5 border-t border-line pt-4">
+          <ConnectTiles withCompany />
+        </div>
+        {(["gmail", "yahoo"] as const).some((p) => MAIL_PROVIDERS[p]!.setupNeeded()) && (
           <p className="mt-2 text-xs text-muted">
             Greyed out? Add the provider's app ID under{" "}
             <a href="/settings?s=integrations" className="text-brand hover:underline">
@@ -156,9 +196,9 @@ function Accounts() {
         </label>
       </Card>
 
-      <Card title="Calendars" description="Connected separately from mail. Connecting a mailbox never grants calendar access.">
+      <Card title="Calendar" description="Connected separately from mail. Connecting a mailbox never grants calendar access.">
         <div className="grid gap-2 sm:grid-cols-2">
-          {(["google", "outlook"] as const).map((c) => {
+          {(["google"] as const).map((c) => {
             const client = CALENDAR_PROVIDERS[c];
             const link = calendars.find((x) => x.calendar === c);
             const need = client.setupNeeded();
@@ -202,11 +242,10 @@ function Field({ label, value, onSave, placeholder, valid }: { label: string; va
 function Integrations() {
   const toast = useApp((s) => s.toast);
   const [, force] = useState(0);
-  const save = (k: "google" | "microsoft" | "api", v: string) => {
+  const save = (k: "google" | "api", v: string) => {
     saveSetting(k, v);
     force((n) => n + 1);
     toast(v ? "Saved" : "Removed");
-    if (k === "microsoft") setTimeout(() => window.location.reload(), 300);
   };
   const origin = window.location.origin;
   return (
@@ -220,17 +259,6 @@ function Integrations() {
             Credentials → Create OAuth client ID → Web application → Authorised JavaScript origins: <code className="font-mono text-xs text-fg">{origin}</code>.
           </li>
           <li>Paste the Client ID above. Permissions used: gmail.readonly (read), gmail.send (only when you allow sending), calendar.events (only when you connect the calendar).</li>
-        </ol>
-      </Card>
-      <Card title="Microsoft (Outlook mail and calendar)" description="Signed in with Microsoft's MSAL library; tokens are kept in memory only.">
-        <Field label="Application (client) ID" value={setting("microsoft")} placeholder="00000000-0000-0000-0000-000000000000" valid={(v) => /^[0-9a-f-]{36}$/i.test(v)} onSave={(v) => save("microsoft", v)} />
-        <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-muted">
-          <li>entra.microsoft.com → App registrations → New registration → "Accounts in any organizational directory and personal Microsoft accounts".</li>
-          <li>
-            Redirect URI: platform <b>Single-page application</b>, <code className="font-mono text-xs text-fg">{origin}</code>.
-          </li>
-          <li>API permissions → Microsoft Graph → Delegated: User.Read, Mail.Read, Mail.Send, Calendars.ReadWrite.</li>
-          <li>Copy the Application (client) ID above. Each permission is asked for only when the feature is used.</li>
         </ol>
       </Card>
       <Card title="Server (Yahoo Mail and AI replies)" description="Yahoo has no public mail REST API: it is read over IMAP with OAuth 2.0, which must run on a server that holds the client secret.">

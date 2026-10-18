@@ -67,6 +67,7 @@ function Sidebar({ rail, onNavigate }: { rail: boolean; onNavigate?: () => void 
   const ctx = { ...base, review: new Set(reviewItems.map((i) => i.thread_key)) };
   const folder = pathname === "/inbox" ? ((params.get("view") ?? "inbox") as Folder) : null;
   const account = params.get("account");
+  const company = params.get("company");
   const count = (f: Folder) => view.threads.filter((t) => inFolder(t, f, ctx)).length;
   const unread = (f: Folder) => view.threads.filter((t) => inFolder(t, f, ctx)).reduce((n, t) => n + t.unread, 0);
   const pendingTasks = view.tasks.filter((t) => t.status !== "completed").length;
@@ -92,7 +93,7 @@ function Sidebar({ rail, onNavigate }: { rail: boolean; onNavigate?: () => void 
   const F = ({ f, icon: Icon, label, n, strong, dot }: { f: Folder; icon?: LucideIcon; label: string; n?: number; strong?: boolean; dot?: string }) =>
     wrap(
       label,
-      <Link to={f === "inbox" ? "/inbox" : `/inbox?view=${f}`} onClick={onNavigate} className={row(folder === f && !account)} aria-label={rail ? label : undefined}>
+      <Link to={f === "inbox" ? "/inbox" : `/inbox?view=${f}`} onClick={onNavigate} className={row(folder === f && !account && !company)} aria-label={rail ? label : undefined}>
         {dot ? <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", dot, rail && "h-3 w-3")} /> : Icon && <Icon className="h-[18px] w-[18px] shrink-0" />}
         {!rail && <span className="truncate">{label}</span>}
         <Count n={n} strong={strong} />
@@ -169,6 +170,14 @@ function Sidebar({ rail, onNavigate }: { rail: boolean; onNavigate?: () => void 
 
       <Heading>Mailboxes</Heading>
       <div className="space-y-px">
+        {[...new Set(view.accounts.map((a) => a.company).filter((c): c is string => !!c))].length > 1 && !rail &&
+          [...new Set(view.accounts.map((a) => a.company).filter((c): c is string => !!c))].map((c) => (
+            <Link key={c} to={`/inbox?company=${encodeURIComponent(c)}`} onClick={onNavigate} className={row(company === c && !account)}>
+              <span className="grid h-4 w-4 shrink-0 place-items-center rounded bg-fg/10 text-[9px] font-bold">{c[0]}</span>
+              <span className="min-w-0 flex-1 truncate font-medium">{c}</span>
+              <span className="text-xs tabular-nums text-muted">{view.threads.filter((t) => !t.archived && t.category !== "spam" && view.accounts.find((a) => a.id === t.account_id)?.company === c).reduce((s, t) => s + t.unread, 0) || ""}</span>
+            </Link>
+          ))}
         {view.accounts.map((a) => {
           const n = view.threads.filter((t) => t.account_id === a.id && !t.archived && t.category !== "spam").reduce((s, t) => s + t.unread, 0);
           return wrap(

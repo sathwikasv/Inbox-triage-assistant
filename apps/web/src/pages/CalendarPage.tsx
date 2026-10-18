@@ -64,9 +64,7 @@ const colour = (b: Block) =>
       ? "border-violet-500 bg-violet-100 text-violet-950 dark:bg-violet-500/20 dark:text-violet-100"
       : b.event?.calendar === "google"
         ? "border-rose-500 bg-rose-100 text-rose-950 dark:bg-rose-500/20 dark:text-rose-100"
-        : b.event?.calendar === "outlook"
-          ? "border-blue-600 bg-blue-100 text-blue-950 dark:bg-blue-500/20 dark:text-blue-100"
-          : "border-sky-500 bg-sky-100 text-sky-950 dark:bg-sky-500/20 dark:text-sky-100";
+        : "border-sky-500 bg-sky-100 text-sky-950 dark:bg-sky-500/20 dark:text-sky-100";
 
 export default function CalendarPage() {
   const view = useMailboxView();
@@ -116,7 +114,7 @@ export default function CalendarPage() {
           <p className="mt-1 text-sm text-muted">Meeting requests from email appear striped until you answer them. Nothing is added without your confirmation.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(["google", "outlook"] as const).map((c) => {
+          {(["google"] as const).map((c) => {
             const client = CALENDAR_PROVIDERS[c];
             const link = calendars.find((x) => x.calendar === c);
             const need = client.setupNeeded();
@@ -337,7 +335,7 @@ function EventDialog({ event, view, onClose }: { event: CalendarEvent | null; vi
   const own = state.events.some((e) => e.id === event.id);
   const tz = prefs.timezone;
   return (
-    <Dialog open={!!event} onOpenChange={(o) => !o && onClose()} title={event.title} description={event.simulated ? "Demo calendar: changes stay in this browser." : `${event.calendar === "google" ? "Google" : "Outlook"} Calendar`}>
+    <Dialog open={!!event} onOpenChange={(o) => !o && onClose()} title={event.title} description={event.simulated ? "Demo calendar: changes stay in this browser." : `${event.calendar === "google" ? "Google" : "Google"} Calendar`}>
       <div className="space-y-2 text-sm">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted" />

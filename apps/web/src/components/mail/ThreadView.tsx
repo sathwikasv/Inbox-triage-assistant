@@ -182,7 +182,9 @@ export function ThreadView({ view, thread, onBack, position, onRemoved }: { view
                 </span>
               )}
               <span className="inline-flex h-5 items-center gap-1 rounded-full bg-subtle pl-0.5 pr-2 text-[11px] text-muted">
-                <ProviderMark provider={acc.provider} size="xs" /> {acc.address} · {accountNote(acc)}
+                <ProviderMark provider={acc.provider} size="xs" /> {acc.company ? <b className="font-semibold text-fg/80">{acc.company}</b> : null}
+                {acc.company ? " · " : ""}
+                {acc.address} · {accountNote(acc)}
               </span>
               <span className="text-[11px] text-muted">
                 {msgs.length} message{msgs.length > 1 ? "s" : ""}
@@ -493,7 +495,7 @@ export function ProposalCard({ view, proposal }: { view: MailboxView; proposal: 
   const [duration, setDuration] = useState(String(proposal.duration_min ?? 30));
   const [reminder, setReminder] = useState("15");
   const kindLabel = { meeting_request: "Meeting request", invitation: "Invitation", confirmation: "Confirmed appointment", reschedule: "Reschedule request", cancellation: "Cancellation" }[proposal.kind];
-  const target = calendars[0] ? (calendars[0].calendar === "google" ? "Google Calendar" : "Outlook Calendar") : "the demo calendar";
+  const target = calendars[0] ? "Google Calendar" : "the demo calendar";
   return (
     <div id={`proposal-${proposal.id}`} className={cn("rounded-2xl border bg-surface p-4 shadow-card", proposal.conflicts.length && proposal.status === "proposed" ? "border-rose-300 dark:border-rose-500/40" : "border-line")}>
       <div className="flex items-center gap-2 text-sm font-semibold">

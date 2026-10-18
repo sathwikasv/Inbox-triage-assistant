@@ -105,7 +105,7 @@ test("Continue with Google signs in and shows Gmail mail on the dashboard withou
     if (path === "/ai/status") return route.fulfill({ json: { enabled: false, model: null } });
     if (path === "/auth/google/config") return route.fulfill({ json: { enabled: true, reason: null } });
     if (path === "/auth/google/start") {
-      me = { ...user, email: "riya@gmail.com", onboarding_completed: true, has_password: false, google: { email: "riya@gmail.com", gmail: true } };
+      me = { ...user, email: "riya@gmail.com", onboarding_completed: true, has_password: false, google: { email: "riya@gmail.com", gmail: true }, google_accounts: [{ email: "riya@gmail.com", company: null, primary: true }] };
       return route.fulfill({ status: 302, headers: { location: "http://localhost:4173/dashboard" } });
     }
     if (path === "/auth/google/token") return route.fulfill({ json: { access_token: "ya29.test", expires_in: 3600, email: "riya@gmail.com" } });

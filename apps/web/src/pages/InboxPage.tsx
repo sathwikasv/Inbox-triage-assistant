@@ -5,7 +5,7 @@ import { CATEGORY_LABEL, setRead, splitQuoted, type Category, type MailThread, t
 import { useApp } from "../store/app";
 import { useMailbox, useMailboxView } from "../store/mailbox";
 import { ThreadView } from "../components/mail/ThreadView";
-import { CAT, CATS, CategoryBadge, PRIORITY_ORDER, PriorityBadge, ProviderMark, SenderAvatar, dayBucket, firstName, listTime, nameOf, type DayBucket } from "../components/mail/common";
+import { CAT, CATS, CategoryBadge, CompanyBadge, PRIORITY_ORDER, PriorityBadge, ProviderMark, SenderAvatar, dayBucket, firstName, listTime, nameOf, type DayBucket } from "../components/mail/common";
 import { FOLDER_LABEL, inFolder, queue, useThreadContext, type Folder, type ThreadContext } from "../lib/folders";
 import { useThreadActions } from "../lib/threadActions";
 import { useReviewItems } from "../lib/review";
@@ -47,6 +47,7 @@ export default function InboxPage() {
   const [params, setParams] = useSearchParams();
   const folder = (params.get("view") ?? "inbox") as Folder;
   const account = params.get("account") ?? "all";
+  const company = params.get("company");
   const selectedKey = params.get("t");
   const query = params.get("q") ?? "";
   const unreadOnly = params.get("unread") === "1";
@@ -61,7 +62,9 @@ export default function InboxPage() {
   const tz = prefs.timezone;
   const split = prefs.pane === "right";
 
-  const inScope = (t: MailThread) => account === "all" || t.account_id === account;
+  const accountOf = (t: MailThread) => view.accounts.find((a) => a.id === t.account_id);
+  const inScope = (t: MailThread) => (account === "all" || t.account_id === account) && (!company || accountOf(t)?.company === company);
+  const companies = [...new Set(view.accounts.map((a) => a.company).filter((c): c is string => !!c))];
   const threads = useMemo(() => {
     const q = query.toLowerCase();
     const list = view.threads.filter((t) => {
@@ -75,7 +78,7 @@ export default function InboxPage() {
       });
     });
     return sort === "priority" ? [...list].sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority) || Date.parse(b.last_at) - Date.parse(a.last_at)) : list;
-  }, [view.threads, folder, account, query, unreadOnly, withFiles, sort, ctx, reviewKeys]);
+  }, [view.threads, view.accounts, folder, account, company, query, unreadOnly, withFiles, sort, ctx, reviewKeys]);
 
   const groups = useMemo(() => {
     const out: { label: string; items: MailThread[] }[] = [];
@@ -225,6 +228,11 @@ export default function InboxPage() {
                   <ProviderMark provider={acc.provider} size="xs" /> {acc.address} <X className="h-3 w-3" />
                 </button>
               )}
+              {company && !acc && (
+                <button onClick={() => setParam("company", null)} className="inline-flex items-center gap-1 rounded-full bg-subtle py-0.5 pl-2 pr-2 text-xs hover:bg-fg/10" title="Show all companies">
+                  {company} <X className="h-3 w-3" />
+                </button>
+              )}
               {acc?.mode === "connected" && (
                 <IconBtn label={`Fetch new mail for ${acc.address}`} onClick={() => refresh(acc.id)}>
                   <RefreshCw className={cn("h-4 w-4", busy[`refresh:${acc.id}`] && "animate-spin")} />
@@ -233,6 +241,42 @@ export default function InboxPage() {
             </div>
           )}
           <div className="ml-auto flex items-center gap-0.5">
+            {view.accounts.length > 1 && (
+              <select
+                aria-label="Filter by company or mailbox"
+                value={account !== "all" ? `account:${account}` : company ? `company:${company}` : "all"}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const p = new URLSearchParams(params);
+                  p.delete("account");
+                  p.delete("company");
+                  p.delete("t");
+                  if (v.startsWith("company:")) p.set("company", v.slice(8));
+                  else if (v.startsWith("account:")) p.set("account", v.slice(8));
+                  setParams(p);
+                }}
+                className="field mr-1 h-8 max-w-[11rem]"
+              >
+                <option value="all">All mailboxes</option>
+                {companies.length > 0 && (
+                  <optgroup label="Company">
+                    {companies.map((c) => (
+                      <option key={c} value={`company:${c}`}>
+                        {c}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Mailbox">
+                  {view.accounts.map((a) => (
+                    <option key={a.id} value={`account:${a.id}`}>
+                      {a.company ? `${a.company} · ` : ""}
+                      {a.address}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            )}
             <IconBtn label={sort === "priority" ? "Sorted by priority (click for newest first)" : "Sorted by newest (click for priority)"} active={sort === "priority"} onClick={() => setParam("sort", sort === "priority" ? null : "priority")}>
               <ArrowDownWideNarrow className="h-[18px] w-[18px]" />
             </IconBtn>
@@ -458,6 +502,7 @@ function Row(p: {
             <div className="mt-1.5 flex items-center gap-1.5">
               <CategoryBadge category={t.category} />
               <PriorityBadge priority={t.priority} />
+              <CompanyBadge account={acc} />
               {starred && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="starred" />}
               {icons}
             </div>
@@ -487,6 +532,7 @@ function Row(p: {
             {r.msgs.length > 1 && <span className="text-xs font-normal text-muted">{r.msgs.length}</span>}
           </span>
           <CategoryBadge category={t.category} className="hidden sm:inline-flex" />
+          <CompanyBadge account={acc} className="hidden lg:inline-flex" />
           <span className="min-w-0 flex-1 truncate text-sm">
             <span className={cn(unread ? "font-bold" : "text-fg/85")}>{t.subject}</span>
             <span className="text-muted"> — {r.snippet}</span>
