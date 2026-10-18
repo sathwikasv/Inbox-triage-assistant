@@ -54,7 +54,7 @@ googleRouter.get("/start", wrap(async (req, res) => {
   const company = typeof req.query.company === "string" ? req.query.company.trim().slice(0, 80) : undefined;
   const value = encodeURIComponent(seal(JSON.stringify({ state, next: safeNext(req.query.next), ...(link ? { link: true } : {}), ...(company ? { company } : {}) })));
   res.append("Set-Cookie", `${STATE_COOKIE}=${value}; Path=/; HttpOnly; Max-Age=600; SameSite=Lax${secure(req) ? "; Secure" : ""}`);
-  res.redirect(authUrl(cfg, state, typeof req.query.hint === "string" ? req.query.hint : undefined));
+  res.redirect(authUrl(cfg, state, typeof req.query.hint === "string" ? req.query.hint : undefined, { calendar: req.query.calendar === "1" }));
 }));
 
 // Step 2: Google sends the person back with a one-time code.
@@ -144,7 +144,7 @@ googleRouter.get(
     if (!cfg.ok) return res.status(503).json({ error: cfg.reason });
     try {
       const t = await refreshAccess(cfg, open(target.refresh_enc));
-      return res.json({ access_token: t.access_token, expires_in: t.expires_in, email: target.email, company: target.company });
+      return res.json({ access_token: t.access_token, expires_in: t.expires_in, email: target.email, company: target.company, scope: t.scope });
     } catch (e) {
       await dropGrant(u, target); // revoked or expired: ask again
       return res.status(409).json({ error: `Google access ended for ${target.email} (${(e as Error).message}). Add it again to reconnect Gmail.` });
