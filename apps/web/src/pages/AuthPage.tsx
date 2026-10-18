@@ -84,6 +84,8 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
     if (mode === "login" || mode === "signup") auth.googleStatus().then(setGoogle);
   }, [mode]);
   useEffect(() => {
+    const googleError = params.get("google_error");
+    if (googleError && auth.status === "signed_in") useApp.getState().toast(googleError, "warn"); // otherwise it would vanish with the redirect
     if (auth.status === "signed_in" && mode !== "reset") navigate(from, { replace: true });
   }, [auth.status, mode, from, navigate]);
 

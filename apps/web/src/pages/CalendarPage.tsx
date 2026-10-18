@@ -69,7 +69,7 @@ const colour = (b: Block) =>
 
 export default function CalendarPage() {
   const view = useMailboxView();
-  const { connectCalendar, refreshCalendars, calendars, busy, apply } = useMailbox();
+  const { connectCalendar, refreshCalendars, calendars, calendarNote, busy, apply } = useMailbox();
   const prefs = useApp((s) => s.prefs);
   const [week, setWeek] = useState(0);
   const [mode, setMode] = useState<"week" | "agenda">("week");
@@ -153,7 +153,11 @@ export default function CalendarPage() {
       </div>
       {calendars.length === 0 && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          <AlertTriangle className="h-4 w-4 shrink-0" /> No calendar connected: events you accept go to a demo calendar kept in this browser.
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            No calendar connected: events you accept go to a demo calendar kept in this browser.
+            {calendarNote && <b className="mt-0.5 block font-semibold">{calendarNote}</b>}
+          </span>
         </div>
       )}
 

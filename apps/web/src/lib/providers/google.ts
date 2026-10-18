@@ -299,6 +299,10 @@ function serverCalendarSignIn() {
   window.location.assign(`${api}/auth/google/start?calendar=1&next=${encodeURIComponent("/calendar")}${hint ? `&hint=${encodeURIComponent(hint)}` : ""}`);
 }
 
+// Why Calendar is not connected, in words the person can act on (shown in the yellow box on the Calendar page).
+let problem: string | null = null;
+export const calendarProblem = () => problem;
+
 async function loadCalendar(): Promise<{ address: string; events: CalendarEvent[] }> {
   const me = await call<{ id: string }>("calendar", "https://www.googleapis.com/calendar/v3/calendars/primary");
   return { address: me.id, events: await googleCalendar.list() };
@@ -318,8 +322,15 @@ export const googleCalendar: CalendarProviderClient = {
   },
   // After a page load: reconnect quietly when the server already holds a Calendar grant.
   async restore() {
-    if (!(await serverCalendarToken())) return null;
-    return loadCalendar().catch(() => null);
+    if (!(await serverCalendarToken())) {
+      problem = serverAccounts.length ? "Google has not given Triagedesk access to your Calendar yet. Click Connect Google Calendar and tick the Calendar permission on Google's screen." : null;
+      return null;
+    }
+    problem = null;
+    return loadCalendar().catch((e: Error) => {
+      problem = `Google Calendar answered with an error: ${e.message}`;
+      return null;
+    });
   },
   async list() {
     const from = new Date(Date.now() - 7 * 86_400_000).toISOString();
