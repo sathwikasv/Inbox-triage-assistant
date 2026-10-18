@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { setting } from "../lib/providers";
+import { linkServerGmail, setting } from "../lib/providers";
+import { useMailbox } from "./mailbox";
 import { useApp } from "./app";
 
 // The Triagedesk account (not a mailbox): sign up, sign in, sign out and password reset, via the server's
@@ -13,6 +14,8 @@ export interface AppUser {
   timezone: string;
   use: "work" | "personal" | "both";
   onboarding_completed: boolean;
+  has_password?: boolean;
+  google?: { email: string; gmail: boolean } | null;
   created_at: string;
 }
 export type AuthStatus = "loading" | "signed_in" | "signed_out" | "unavailable";
@@ -61,6 +64,9 @@ interface AuthStore {
   reset(token: string, password: string): Promise<Result>;
   update(patch: Partial<Pick<AppUser, "name" | "timezone" | "use" | "onboarding_completed">>): Promise<Result>;
   continueAsGuest(): void;
+  /** Full-page Google sign-in on the server; it comes back signed in, with Gmail linked. */
+  google(next?: string): void;
+  googleStatus(): Promise<{ enabled: boolean; reason: string | null }>;
 }
 
 /** One workspace per browser: when a different person signs in, the previous person's workspace is cleared. */
@@ -70,7 +76,9 @@ function adopt(user: AppUser) {
   write("c16.owner", user.id);
   write("c16.guest", null);
   useApp.getState().setPrefs({ name: user.name, timezone: user.timezone });
-  if (owner && owner !== user.id) window.location.assign("/dashboard"); // reload the stores with the empty workspace
+  if (owner && owner !== user.id) return window.location.assign("/dashboard"); // reload the stores with the empty workspace
+  linkServerGmail(!!user.google?.gmail);
+  if (user.google?.gmail) void useMailbox.getState().connectLinkedGmail(); // signed in with Google: Gmail is already granted
 }
 
 export const useAuth = create<AuthStore>((set, get) => ({
@@ -133,6 +141,18 @@ export const useAuth = create<AuthStore>((set, get) => ({
   continueAsGuest() {
     write("c16.guest", "true");
     set({ guest: true });
+  },
+  google(next = "/dashboard") {
+    window.location.assign(`${api()}/auth/google/start?next=${encodeURIComponent(next)}`);
+  },
+  async googleStatus() {
+    if (!api()) return { enabled: false, reason: "This copy of Triagedesk runs without a server." };
+    try {
+      const r = await fetch(`${api()}/auth/google/config`);
+      return r.ok ? ((await r.json()) as { enabled: boolean; reason: string | null }) : { enabled: false, reason: "The server cannot be reached." };
+    } catch {
+      return { enabled: false, reason: "The server cannot be reached." };
+    }
   },
 }));
 

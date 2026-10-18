@@ -22,6 +22,28 @@ declare global {
 
 const tokens = new Map<ScopeName, { token: string; expires: number }>();
 
+// Signed in with Google: the server holds the (encrypted) Gmail grant and hands out short-lived read tokens,
+// so Gmail connects without any popup, also after a reload.
+let serverLinked = false;
+export const linkServerGmail = (on: boolean) => {
+  serverLinked = on;
+};
+export const serverGmailLinked = () => serverLinked;
+
+async function serverToken(): Promise<string | null> {
+  const api = setting("api").replace(/\/$/, "");
+  if (!serverLinked || !api) return null;
+  try {
+    const r = await fetch(`${api}/auth/google/token`, { credentials: "include" });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { access_token: string; expires_in: number };
+    tokens.set("read", { token: j.access_token, expires: Date.now() + j.expires_in * 1000 });
+    return j.access_token;
+  } catch {
+    return null;
+  }
+}
+
 function loadGis(): Promise<void> {
   if (window.google?.accounts?.oauth2) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -37,6 +59,10 @@ function loadGis(): Promise<void> {
 async function token(scope: ScopeName, interactive = true): Promise<string> {
   const have = tokens.get(scope);
   if (have && have.expires > Date.now() + 60_000) return have.token;
+  if (scope === "read") {
+    const fromServer = await serverToken();
+    if (fromServer) return fromServer;
+  }
   const clientId = setting("google");
   if (!clientId) throw new ProviderError("gmail", "add a Google OAuth Client ID in Settings first");
   await loadGis();
@@ -168,6 +194,10 @@ export const gmail: MailProviderClient = {
     return { message_id: sent.id };
   },
   async disconnect() {
+    if (serverLinked) {
+      await fetch(`${setting("api").replace(/\/$/, "")}/auth/google/disconnect`, { method: "POST", credentials: "include" }).catch(() => undefined);
+      serverLinked = false;
+    }
     for (const [, t] of tokens) window.google?.accounts.oauth2.revoke(t.token);
     tokens.clear();
   },

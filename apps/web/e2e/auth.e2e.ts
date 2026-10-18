@@ -96,3 +96,43 @@ test("signing out returns to the sign-in page", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login/);
 });
+
+test("Continue with Google signs in and shows Gmail mail on the dashboard without a separate connect step", async ({ page }) => {
+  let me: Record<string, unknown> | null = null;
+  const gmailCalls: string[] = [];
+  await page.route(`${API}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/ai/status") return route.fulfill({ json: { enabled: false, model: null } });
+    if (path === "/auth/google/config") return route.fulfill({ json: { enabled: true, reason: null } });
+    if (path === "/auth/google/start") {
+      me = { ...user, email: "riya@gmail.com", onboarding_completed: true, has_password: false, google: { email: "riya@gmail.com", gmail: true } };
+      return route.fulfill({ status: 302, headers: { location: "http://localhost:4173/dashboard" } });
+    }
+    if (path === "/auth/google/token") return route.fulfill({ json: { access_token: "ya29.test", expires_in: 3600, email: "riya@gmail.com" } });
+    if (path === "/auth/me") return me ? route.fulfill({ json: { user: me } }) : route.fulfill({ status: 401, json: {} });
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.route("https://gmail.googleapis.com/**", async (route) => {
+    const url = route.request().url();
+    gmailCalls.push(`${route.request().headers()["authorization"]} ${new URL(url).pathname}`);
+    if (url.endsWith("/profile")) return route.fulfill({ json: { emailAddress: "riya@gmail.com" } });
+    if (/\/messages\?/.test(url)) return route.fulfill({ json: { messages: [{ id: "g1" }] } });
+    const b64 = (s: string) => Buffer.from(s).toString("base64url");
+    return route.fulfill({
+      json: { id: "g1", threadId: "t1", labelIds: ["INBOX", "UNREAD"], internalDate: String(Date.parse("2026-10-17T09:00:00Z")), snippet: "", payload: { mimeType: "text/plain", headers: [{ name: "From", value: "Karan Desai <karan@example.com>" }, { name: "To", value: "riya@gmail.com" }, { name: "Subject", value: "Q3 budget numbers" }], body: { data: b64("Hi Riya, could you send the final Q3 budget numbers by Friday?") } } },
+    });
+  });
+  await page.goto("/");
+  await page.evaluate((api) => {
+    localStorage.clear();
+    localStorage.setItem("c16.api_url", api);
+    localStorage.setItem("c16.google_client_id", "test-client.apps.googleusercontent.com");
+  }, API);
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+  await page.goto("/inbox");
+  await expect(page.locator("li[data-thread]", { hasText: "Q3 budget numbers" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Connect Gmail/ })).toHaveCount(0);
+  expect(gmailCalls.every((c) => c.startsWith("Bearer ya29.test"))).toBe(true);
+});
