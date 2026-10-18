@@ -17,7 +17,6 @@ const env = Object.fromEntries(
 const has = (k) => !!env[k];
 const checks = [
   ["Gmail + Google Calendar", ["VITE_GOOGLE_CLIENT_ID"], () => /\.apps\.googleusercontent\.com$/.test(env.VITE_GOOGLE_CLIENT_ID ?? "") || "VITE_GOOGLE_CLIENT_ID should end in .apps.googleusercontent.com"],
-  ["Outlook mail + calendar", ["VITE_MS_CLIENT_ID"], () => /^[0-9a-f-]{36}$/i.test(env.VITE_MS_CLIENT_ID ?? "") || "VITE_MS_CLIENT_ID should look like 00000000-0000-0000-0000-000000000000"],
   ["Server address for the web app", ["VITE_API_URL"], () => /^https?:\/\//.test(env.VITE_API_URL ?? "") || "VITE_API_URL should start with http:// or https://"],
   ["AI assistant (Gemini)", ["GEMINI_API_KEY"], () => true],
   ["Token encryption", ["SESSION_SECRET"], () => (env.SESSION_SECRET ?? "").length >= 16 || "SESSION_SECRET should be at least 16 characters"],

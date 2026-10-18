@@ -16,6 +16,7 @@ export interface AppUser {
   onboarding_completed: boolean;
   has_password?: boolean;
   google?: { email: string; gmail: boolean } | null;
+  google_accounts?: { email: string; company: string | null; primary: boolean }[];
   created_at: string;
 }
 export type AuthStatus = "loading" | "signed_in" | "signed_out" | "unavailable";
@@ -77,8 +78,8 @@ function adopt(user: AppUser) {
   write("c16.guest", null);
   useApp.getState().setPrefs({ name: user.name, timezone: user.timezone });
   if (owner && owner !== user.id) return window.location.assign("/dashboard"); // reload the stores with the empty workspace
-  linkServerGmail(!!user.google?.gmail);
-  if (user.google?.gmail) void useMailbox.getState().connectLinkedGmail(); // signed in with Google: Gmail is already granted
+  linkServerGmail(user.google_accounts ?? []);
+  if (user.google_accounts?.length) void useMailbox.getState().connectLinkedGmail(); // signed in with Google: those Gmail accounts are already granted
 }
 
 export const useAuth = create<AuthStore>((set, get) => ({

@@ -6,8 +6,6 @@ Every provider signs in with its own OAuth 2.0 consent screen. The app never ask
 |---|---|---|---|
 | Gmail | Google Identity Services (browser) | `gmail.readonly`; `gmail.send` only after "Allow sending" | this tab's memory |
 | Google Calendar | same Google client, separate consent | `calendar.events` | this tab's memory |
-| Outlook | Microsoft MSAL (browser, auth code + PKCE) | `User.Read`, `Mail.Read`; `Mail.Send` only after "Allow sending" | MSAL memory cache |
-| Outlook Calendar | same Microsoft app, separate consent | `Calendars.ReadWrite` | MSAL memory cache |
 | Yahoo Mail | the server (IMAP + SMTP, XOAUTH2) | `openid email mail-r`; `mail-w` only after "Allow sending" | server memory, AES-256-GCM encrypted |
 
 Calendar events created by the app never include attendees, so the provider sends no invitations on your behalf.
@@ -20,13 +18,8 @@ Calendar events created by the app never include attendees, so the provider send
 
 While the app is in Testing, Google shows an "unverified app" notice and grants expire after 7 days. Publishing to all users needs Google's verification, because `gmail.readonly` is a restricted scope.
 
-## Outlook mail and calendar
-1. Open entra.microsoft.com → App registrations → New registration, and choose "Accounts in any organizational directory and personal Microsoft accounts".
-2. Authentication: add the platform **Single-page application** with the redirect URI set to the app's URL.
-3. API permissions → Microsoft Graph → Delegated: `User.Read`, `Mail.Read`, `Mail.Send`, `Calendars.ReadWrite`.
-4. Paste the Application (client) ID in Settings → Integrations, or set `VITE_MS_CLIENT_ID`.
-
-Work or school tenants may need an administrator to consent to these permissions.
+## Several accounts per provider
+Every Gmail / Google Workspace and Yahoo account is its own connection. "Connect other Gmail account" always shows Google's account chooser, so a second or third address (another company, a client, a personal one) is added next to the others, and disconnecting one never touches the rest. Name the company before connecting, or later under Settings → Accounts. When you sign in with Google, the accounts linked to that login reconnect by themselves after a reload.
 
 ## Yahoo Mail
 Yahoo has no public mail REST API. Mail is read over IMAP and sent over SMTP with OAuth 2.0, which has to run on the server so the client secret stays private.
@@ -37,7 +30,7 @@ Yahoo has no public mail REST API. Mail is read over IMAP and sent over SMTP wit
 
 ## Where the keys go
 Put every value in the repo-root `.env` (copy `.env.example`), run `pnpm check:env` to see which ones are set, then `pnpm dev`.
-- `VITE_GOOGLE_CLIENT_ID` and `VITE_MS_CLIENT_ID` are public client IDs and are built into the web app.
+- `VITE_GOOGLE_CLIENT_ID` is a public client ID and is built into the web app.
 - `GEMINI_API_KEY`, `YAHOO_CLIENT_SECRET` and `SESSION_SECRET` are secrets. They are read only by the server, never start with `VITE_`, and never reach the browser.
 
 ## Status without credentials
