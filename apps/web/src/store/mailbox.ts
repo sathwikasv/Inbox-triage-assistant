@@ -69,6 +69,8 @@ interface MailboxStore {
   connect(provider: "gmail" | "outlook" | "yahoo"): Promise<void>;
   refresh(accountId: string): Promise<void>;
   restore(): Promise<void>;
+  /** Signed in with Google: connect Gmail quietly with the server's grant (no popup). */
+  connectLinkedGmail(): Promise<void>;
   disconnect(accountId: string): Promise<void>;
   enableSend(accountId: string): Promise<void>;
   send(view: MailboxView, threadKey: string, confirmed: string[]): Promise<boolean>;
@@ -159,6 +161,19 @@ export const useMailbox = create<MailboxStore>((set, get) => {
         set({ connected: upsert(get().connected, { account: { ...m.account, last_sync_at: now(), status: "ok" }, messages }) });
         useApp.getState().toast(`${m.account.address} refreshed: ${messages.length} emails`);
       }),
+
+    async connectLinkedGmail() {
+      const gmail = MAIL_PROVIDERS.gmail!;
+      if (gmail.setupNeeded() || get().connected.some((c) => c.account.provider === "gmail") || get().busy["connect:gmail"]) return;
+      set({ busy: { ...get().busy, "connect:gmail": true } });
+      try {
+        connected(await gmail.connect());
+      } catch {
+        /* the reconnect bar offers one click */
+      } finally {
+        set({ busy: { ...get().busy, "connect:gmail": false } });
+      }
+    },
 
     async restore() {
       for (const k of get().known) {
