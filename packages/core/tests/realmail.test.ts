@@ -108,3 +108,27 @@ describe("the AI assistant's category opinion", () => {
     expect(v.insights[update.id].decided_by).toBe("user");
   });
 });
+
+describe("unsolicited and marketing mail is Promotions, not FYI", () => {
+  const cases: [string, string, string][] = [
+    ["Grow your business 3x", "growth@brandboost.example", "Hi, we help businesses like yours grow. Book a quick call to show you how."],
+    ["Free webinar: AI for sales", "events@saasco.example", "Join our masterclass on Friday. Register now, only 20 seats left!"],
+    ["Congratulations, you have been selected", "rewards@lucky.example", "Congratulations! You've been selected for an exclusive offer. Claim today."],
+    ["Quick question", "priya@agency.example", "Hi, I came across your profile and thought our agency could help. Dear Sir, reaching out to explore a partnership."],
+    ["Festive discount on laptops", "deals@store.example", "Flash sale: discount on every laptop. Don't miss out, ends tonight."],
+    ["Hiring now: work from home", "jobs@talent.example", "Job opportunity for you. Apply today and earn from home."],
+  ];
+  it.each(cases)("%s", (subject, email, body) => {
+    const m = msg({ from: { name: "Sender", email }, subject, body });
+    const v = view([m]);
+    expect(v.insights[m.id].category).toBe("promotions");
+  });
+
+  it("ordinary information from a person stays FYI, and a real request is not a promotion", () => {
+    const info = msg({ from: { name: "Meera", email: "meera@fynd.com" }, subject: "Office closed Friday", body: "Heads up: the office is closed on Friday for Diwali. No action needed." });
+    const ask = msg({ from: { name: "Karan", email: "karan@fynd.com" }, subject: "Q3 numbers", body: "Could you send the Q3 budget numbers by Friday?" });
+    const v = view([info, ask]);
+    expect(v.insights[info.id].category).toBe("fyi");
+    expect(v.insights[ask.id].category).toBe("requires_action");
+  });
+});
